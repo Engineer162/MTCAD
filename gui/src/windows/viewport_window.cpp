@@ -244,12 +244,18 @@ static std::vector<std::array<int,3>> TriangulatePolygon(const std::vector<ImVec
     std::vector<int> V(n);
     for (int i=0;i<n;++i) V[i]=i;
 
+    const float area = PolygonSignedArea2D(pts);
+    if (std::fabs(area) < 1e-6f) {
+        return tris;
+    }
+    const float winding_sign = area > 0.0f ? 1.0f : -1.0f;
+
     auto is_convex = [&](int i0, int i1, int i2)->bool{
         const ImVec2& a = pts[i0];
         const ImVec2& b = pts[i1];
         const ImVec2& c = pts[i2];
         const float cross = (b.x - a.x)*(c.y - a.y) - (b.y - a.y)*(c.x - a.x);
-        return cross > 1e-6f;
+        return cross * winding_sign > 1e-6f;
     };
 
     int guard = 0;
@@ -320,7 +326,7 @@ static std::vector<ImVec2> ProjectPolygonToScreen(const std::vector<ViewportWind
     return projected;
 }
 
-static void DrawExtrudedBodyPreview(ImDrawList* draw_list, const std::vector<ViewportWindow::Vec3>& polygon, float depth_world, const ViewportWindow* viewport, const ImVec2& canvas_pos, const ImVec2& canvas_size, bool solid_render) {
+static void DrawExtrudedBodyPreview(ImDrawList* draw_list, const std::vector<ViewportWindow::Vec3>& polygon, float depth_world, const ViewportWindow* viewport, const ImVec2& canvas_pos, const ImVec2& canvas_size, bool solid_render, const ViewportWindow::Vec3& camera_pos, const ViewportWindow::Vec3& camera_forward) {
     if (draw_list == nullptr || viewport == nullptr || polygon.size() < 3) {
         return;
     }
@@ -367,29 +373,176 @@ static void DrawExtrudedBodyPreview(ImDrawList* draw_list, const std::vector<Vie
 
     const ImU32 side_fill = solid_render ? IM_COL32(120, 124, 130, 255) : IM_COL32(86, 118, 168, 100);
     const ImU32 top_fill = solid_render ? IM_COL32(142, 146, 152, 255) : IM_COL32(112, 156, 220, 120);
+    const ImU32 bottom_fill = top_fill;
     const ImU32 outline = solid_render ? IM_COL32(74, 78, 84, 255) : IM_COL32(190, 220, 255, 180);
+    constexpr float kCapFacingThreshold = 0.10f;
 
+    struct FaceItem {
+        std::vector<ImVec2> pts;
+        float depth_key = 0.0f;
+        ImU32 fill = 0;
+    };
+
+    struct LineItem {
+        std::vector<ImVec2> pts;
+        float depth_key = 0.0f;
+        float thickness = 1.0f;
+        ImU32 color = 0;
+    };
+
+    auto tri_depth = [&](const ViewportWindow::Vec3& w0, const ViewportWindow::Vec3& w1, const ViewportWindow::Vec3& w2) {
+        const ViewportWindow::Vec3 centroid = {
+            (w0.x + w1.x + w2.x) * (1.0f / 3.0f),
+            (w0.y + w1.y + w2.y) * (1.0f / 3.0f),
+            (w0.z + w1.z + w2.z) * (1.0f / 3.0f)
+        };
+        return Dot(Sub(centroid, camera_pos), camera_forward);
+    };
+
+    auto quad_depth = [&](const ViewportWindow::Vec3& w0, const ViewportWindow::Vec3& w1, const ViewportWindow::Vec3& w2, const ViewportWindow::Vec3& w3) {
+        const ViewportWindow::Vec3 centroid = {
+            (w0.x + w1.x + w2.x + w3.x) * 0.25f,
+            (w0.y + w1.y + w2.y + w3.y) * 0.25f,
+            (w0.z + w1.z + w2.z + w3.z) * 0.25f
+        };
+        return Dot(Sub(centroid, camera_pos), camera_forward);
+    };
+
+    std::vector<FaceItem> faces;
+    std::vector<LineItem> outlines;
+    faces.reserve(base_screen.size() * 2 + base_screen.size() * 2);
+    outlines.reserve(base_screen.size() * 2 + base_screen.size() * 2);
+
+    // Side walls are convex quads, so keep each wall as a single face.
     for (size_t i = 0; i < base_screen.size(); ++i) {
-        const ImVec2& a = base_screen[i];
-        const ImVec2& b = base_screen[(i + 1) % base_screen.size()];
-        const ImVec2& c = offset_screen[(i + 1) % offset_screen.size()];
-        const ImVec2& d = offset_screen[i];
-        ImVec2 quad[4] = {a, b, c, d};
-        draw_list->AddConvexPolyFilled(quad, 4, side_fill);
-        draw_list->AddPolyline(quad, 4, outline, ImDrawFlags_Closed, 1.0f);
+        const size_t j = (i + 1) % base_screen.size();
+        const ViewportWindow::Vec3& wa = polygon[i];
+        const ViewportWindow::Vec3& wb = polygon[j];
+        const ViewportWindow::Vec3& wc = offset_polygon[j];
+        const ViewportWindow::Vec3& wd = offset_polygon[i];
+        const float side_depth = quad_depth(wa, wb, wc, wd);
+        const ViewportWindow::Vec3 side_centroid = {
+            (wa.x + wb.x + wc.x + wd.x) * 0.25f,
+            (wa.y + wb.y + wc.y + wd.y) * 0.25f,
+            (wa.z + wb.z + wc.z + wd.z) * 0.25f
+        };
+        const ViewportWindow::Vec3 side_normal = Cross(Sub(wb, wa), Sub(wd, wa));
+        const bool side_visible = Dot(side_normal, Sub(camera_pos, side_centroid)) < 0.0f;
+
+        faces.push_back({
+            {base_screen[i], base_screen[j], offset_screen[j], offset_screen[i]},
+            side_depth,
+            side_fill
+        });
+        if (side_visible) {
+            outlines.push_back({
+                {base_screen[i], base_screen[j], offset_screen[j], offset_screen[i]},
+                side_depth,
+                1.0f,
+                outline
+            });
+        }
     }
 
-    const std::vector<std::array<int, 3>> top_tris = TriangulatePolygon(base_screen);
-    const std::vector<std::array<int, 3>> bottom_tris = TriangulatePolygon(offset_screen);
-    for (const auto& tri : top_tris) {
-        draw_list->AddTriangleFilled(base_screen[(size_t)tri[0]], base_screen[(size_t)tri[1]], base_screen[(size_t)tri[2]], top_fill);
+    auto polygon_normal = [&](const std::vector<ViewportWindow::Vec3>& poly) {
+        ViewportWindow::Vec3 normal = {0.0f, 0.0f, 0.0f};
+        for (size_t i = 0; i < poly.size(); ++i) {
+            const ViewportWindow::Vec3& curr = poly[i];
+            const ViewportWindow::Vec3& next = poly[(i + 1) % poly.size()];
+            normal.x += (curr.y - next.y) * (curr.z + next.z);
+            normal.y += (curr.z - next.z) * (curr.x + next.x);
+            normal.z += (curr.x - next.x) * (curr.y + next.y);
+        }
+        return normal;
+    };
+
+    ViewportWindow::Vec3 top_centroid = {0.0f, 0.0f, 0.0f};
+    for (const auto& point : polygon) {
+        top_centroid.x += point.x;
+        top_centroid.y += point.y;
+        top_centroid.z += point.z;
     }
-    for (const auto& tri : bottom_tris) {
-        draw_list->AddTriangleFilled(offset_screen[(size_t)tri[0]], offset_screen[(size_t)tri[1]], offset_screen[(size_t)tri[2]], IM_COL32(68, 92, 138, 115));
+    const float top_inv_n = 1.0f / (float)polygon.size();
+    top_centroid.x *= top_inv_n;
+    top_centroid.y *= top_inv_n;
+    top_centroid.z *= top_inv_n;
+
+    ViewportWindow::Vec3 bottom_centroid = {0.0f, 0.0f, 0.0f};
+    for (const auto& point : offset_polygon) {
+        bottom_centroid.x += point.x;
+        bottom_centroid.y += point.y;
+        bottom_centroid.z += point.z;
+    }
+    const float bottom_inv_n = 1.0f / (float)offset_polygon.size();
+    bottom_centroid.x *= bottom_inv_n;
+    bottom_centroid.y *= bottom_inv_n;
+    bottom_centroid.z *= bottom_inv_n;
+
+    const ViewportWindow::Vec3 prism_center = {
+        (top_centroid.x + bottom_centroid.x) * 0.5f,
+        (top_centroid.y + bottom_centroid.y) * 0.5f,
+        (top_centroid.z + bottom_centroid.z) * 0.5f
+    };
+
+    const ViewportWindow::Vec3 cap_normal = polygon_normal(polygon);
+    const ViewportWindow::Vec3 extrusion_dir = Normalize(Sub(bottom_centroid, top_centroid));
+    ViewportWindow::Vec3 oriented_cap_normal = cap_normal;
+    if (Dot(oriented_cap_normal, extrusion_dir) < 0.0f) {
+        oriented_cap_normal = Mul(oriented_cap_normal, -1.0f);
     }
 
-    draw_list->AddPolyline(base_screen.data(), (int)base_screen.size(), outline, ImDrawFlags_Closed, 2.0f);
-    draw_list->AddPolyline(offset_screen.data(), (int)offset_screen.size(), outline, ImDrawFlags_Closed, 2.0f);
+    const float top_facing = Dot(oriented_cap_normal, Sub(camera_pos, top_centroid));
+    const float bottom_facing = Dot(Mul(oriented_cap_normal, -1.0f), Sub(camera_pos, bottom_centroid));
+
+    auto add_cap_faces = [&](const std::vector<ImVec2>& screen_pts, const ViewportWindow::Vec3& cap_depth_center, bool is_front_cap) {
+        const float cap_depth = Dot(Sub(cap_depth_center, camera_pos), camera_forward);
+        const bool visible = is_front_cap ? (top_facing < -kCapFacingThreshold) : (bottom_facing < -kCapFacingThreshold);
+        if (!visible) {
+            return;
+        }
+        if (IsConvexPolygon2D(screen_pts)) {
+            faces.push_back({screen_pts, cap_depth, top_fill});
+            outlines.push_back({screen_pts, cap_depth, 2.0f, outline});
+            return;
+        }
+
+        const std::vector<std::array<int, 3>> cap_tris = TriangulatePolygon(screen_pts);
+        for (const auto& tri : cap_tris) {
+            faces.push_back({
+                {screen_pts[(size_t)tri[0]], screen_pts[(size_t)tri[1]], screen_pts[(size_t)tri[2]]},
+                cap_depth,
+                top_fill
+            });
+        }
+        outlines.push_back({screen_pts, cap_depth, 2.0f, outline});
+    };
+
+    add_cap_faces(base_screen, top_centroid, true);
+    add_cap_faces(offset_screen, bottom_centroid, false);
+
+    // Painter's algorithm: sort all faces by camera depth, keeping each face grouped.
+    std::stable_sort(faces.begin(), faces.end(), [](const FaceItem& a, const FaceItem& b) {
+        return a.depth_key > b.depth_key;
+    });
+
+    for (const auto& face : faces) {
+        if (face.pts.size() == 3) {
+            draw_list->AddTriangleFilled(face.pts[0], face.pts[1], face.pts[2], face.fill);
+        } else if (face.pts.size() >= 3) {
+            draw_list->AddConvexPolyFilled(face.pts.data(), (int)face.pts.size(), face.fill);
+        }
+    }
+
+    std::stable_sort(outlines.begin(), outlines.end(), [](const LineItem& a, const LineItem& b) {
+        return a.depth_key > b.depth_key;
+    });
+
+    for (const auto& line : outlines) {
+        if (line.pts.size() >= 2) {
+            draw_list->AddPolyline(line.pts.data(), (int)line.pts.size(), line.color, ImDrawFlags_Closed, line.thickness);
+        }
+    }
+
 }
 
 static ImVec2 OffsetPreviewPoint(const ImVec2& p, float depth_pixels) {
@@ -421,15 +574,24 @@ static void DrawExtrudedBodyPreview(ImDrawList* draw_list, const std::vector<ImV
         draw_list->AddPolyline(quad, 4, outline, ImDrawFlags_Closed, 1.0f);
     }
 
-    const std::vector<std::array<int, 3>> top_tris = TriangulatePolygon(polygon);
-    const std::vector<std::array<int, 3>> bottom_tris = TriangulatePolygon(offset_polygon);
-    for (const auto& tri : top_tris) {
-        const ImVec2 tri_pts[3] = {polygon[(size_t)tri[0]], polygon[(size_t)tri[1]], polygon[(size_t)tri[2]]};
-        draw_list->AddTriangleFilled(tri_pts[0], tri_pts[1], tri_pts[2], top_fill);
+    if (IsConvexPolygon2D(polygon)) {
+        draw_list->AddConvexPolyFilled(polygon.data(), (int)polygon.size(), top_fill);
+    } else {
+        const std::vector<std::array<int, 3>> top_tris = TriangulatePolygon(polygon);
+        for (const auto& tri : top_tris) {
+            const ImVec2 tri_pts[3] = {polygon[(size_t)tri[0]], polygon[(size_t)tri[1]], polygon[(size_t)tri[2]]};
+            draw_list->AddTriangleFilled(tri_pts[0], tri_pts[1], tri_pts[2], top_fill);
+        }
     }
-    for (const auto& tri : bottom_tris) {
-        const ImVec2 tri_pts[3] = {offset_polygon[(size_t)tri[0]], offset_polygon[(size_t)tri[1]], offset_polygon[(size_t)tri[2]]};
-        draw_list->AddTriangleFilled(tri_pts[0], tri_pts[1], tri_pts[2], IM_COL32(68, 92, 138, 115));
+
+    if (IsConvexPolygon2D(offset_polygon)) {
+        draw_list->AddConvexPolyFilled(offset_polygon.data(), (int)offset_polygon.size(), IM_COL32(68, 92, 138, 115));
+    } else {
+        const std::vector<std::array<int, 3>> bottom_tris = TriangulatePolygon(offset_polygon);
+        for (const auto& tri : bottom_tris) {
+            const ImVec2 tri_pts[3] = {offset_polygon[(size_t)tri[0]], offset_polygon[(size_t)tri[1]], offset_polygon[(size_t)tri[2]]};
+            draw_list->AddTriangleFilled(tri_pts[0], tri_pts[1], tri_pts[2], IM_COL32(68, 92, 138, 115));
+        }
     }
 
     draw_list->AddPolyline(polygon.data(), (int)polygon.size(), outline, ImDrawFlags_Closed, 2.0f);
@@ -1725,11 +1887,15 @@ void ViewportWindow::Render(const ImGuiIO& io) {
         }
 
         if (extruded_body_final_visible_ && extruded_body_final_polygon_.size() >= 3) {
-            DrawExtrudedBodyPreview(draw_list, extruded_body_final_polygon_, extruded_body_final_depth_world_, this, canvas_pos, canvas_size, true);
+            const Vec3 cam_pos = CameraPosition();
+            const Vec3 cam_forward = CameraForward();
+            DrawExtrudedBodyPreview(draw_list, extruded_body_final_polygon_, extruded_body_final_depth_world_, this, canvas_pos, canvas_size, true, cam_pos, cam_forward);
         }
 
         if (extruded_body_preview_visible_ && extruded_body_preview_polygon_.size() >= 3) {
-            DrawExtrudedBodyPreview(draw_list, extruded_body_preview_polygon_, extruded_body_preview_depth_world_, this, canvas_pos, canvas_size, false);
+            const Vec3 cam_pos = CameraPosition();
+            const Vec3 cam_forward = CameraForward();
+            DrawExtrudedBodyPreview(draw_list, extruded_body_preview_polygon_, extruded_body_preview_depth_world_, this, canvas_pos, canvas_size, false, cam_pos, cam_forward);
         }
     }
 
