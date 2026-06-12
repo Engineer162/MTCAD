@@ -19,32 +19,41 @@ Keeping the kernel in C behind a stable C API makes it reusable for:
 ```text
 MTCAD/
 	CMakeLists.txt
+	gui/
+		CMakeLists.txt
+		src/main.cpp
 	kernel/
+		CMakeLists.txt
 		include/mtcad/kernel.h
 		src/kernel.c
-	gui/
-		src/main.cpp
 	third_party/
-		imgui/            # clone Dear ImGui here
+		SDL/
+		imgui/
+		libuv/
+		stb/
 ```
 
 ## Build (Windows, CMake)
 
-1. Get ImGui:
+1. Clone repository:
 
 ```bash
-git clone https://github.com/ocornut/imgui.git third_party/imgui
+git clone --recursive https://github.com/Engineer162/MTCAD.git
 ```
 
-2. Configure:
+2. Install vulkan:
+ 
+```bash
+https://vulkan.lunarg.com/sdk/home
+```
+   
+3. Configure:
 
 ```bash
 cmake -S . -B build
 ```
 
-If SDL3 is not installed as a system CMake package, configure will automatically fetch SDL3 source and build it as part of the project.
-
-3. Build:
+4. Build:
 
 ```bash
 cmake --build build --config Release
