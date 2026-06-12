@@ -1,61 +1,6 @@
-set(MTCAD_IMGUI_DIR "${CMAKE_SOURCE_DIR}/third_party/imgui" CACHE PATH "Path to Dear ImGui")
-
-if(NOT EXISTS "${MTCAD_IMGUI_DIR}/imgui.h")
-    message(FATAL_ERROR "ImGui not found. Place ImGui at ${MTCAD_IMGUI_DIR} or set MTCAD_IMGUI_DIR.")
-endif()
-
-include(FetchContent)
-
 find_package(Vulkan REQUIRED)
 
-set(MTCAD_SDL3_TARGET "")
-find_package(SDL3 QUIET CONFIG)
-
-if(SDL3_FOUND)
-    foreach(candidate_target SDL3::SDL3 SDL3::SDL3-shared SDL3::SDL3-static)
-        if(TARGET ${candidate_target})
-            set(MTCAD_SDL3_TARGET ${candidate_target})
-            break()
-        endif()
-    endforeach()
-endif()
-
-if(NOT MTCAD_SDL3_TARGET)
-    option(MTCAD_FETCH_SDL3 "Fetch SDL3 automatically when not found in the system" ON)
-    if(MTCAD_FETCH_SDL3)
-        set(SDL_TEST OFF CACHE BOOL "" FORCE)
-        set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
-        set(SDL_SHARED ON CACHE BOOL "" FORCE)
-        set(SDL_STATIC OFF CACHE BOOL "" FORCE)
-
-        FetchContent_Declare(SDL3
-            GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-            GIT_TAG release-3.2.10
-            GIT_SHALLOW TRUE
-        )
-        FetchContent_MakeAvailable(SDL3)
-
-        foreach(candidate_target SDL3::SDL3 SDL3::SDL3-shared SDL3::SDL3-static)
-            if(TARGET ${candidate_target})
-                set(MTCAD_SDL3_TARGET ${candidate_target})
-                break()
-            endif()
-        endforeach()
-    endif()
-endif()
-
-FetchContent_Declare(stb
-    GIT_REPOSITORY https://github.com/nothings/stb.git
-    GIT_TAG master
-    GIT_SHALLOW TRUE
-)
-FetchContent_MakeAvailable(stb)
-
-if(NOT MTCAD_SDL3_TARGET)
-    message(FATAL_ERROR
-        "SDL3 target not found. Install SDL3 (SDL3Config.cmake), set SDL3_DIR/CMAKE_PREFIX_PATH, or enable MTCAD_FETCH_SDL3."
-    )
-endif()
+set(MTCAD_SDL3_TARGET SDL3::SDL3)
 
 add_library(mtcad_imgui STATIC
     ${MTCAD_IMGUI_DIR}/imgui.cpp
@@ -75,7 +20,7 @@ target_include_directories(mtcad_imgui
 target_link_libraries(mtcad_imgui
     PUBLIC
         Vulkan::Vulkan
-    ${MTCAD_SDL3_TARGET}
+        ${MTCAD_SDL3_TARGET}
 )
 
 add_executable(mtcad_gui
@@ -102,7 +47,7 @@ target_compile_definitions(mtcad_gui
 
 target_include_directories(mtcad_gui
     PRIVATE
-        ${stb_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/third_party/stb
 )
 
 target_link_libraries(mtcad_gui
@@ -110,7 +55,7 @@ target_link_libraries(mtcad_gui
         mtcad_kernel
         mtcad_imgui
         Vulkan::Vulkan
-    ${MTCAD_SDL3_TARGET}
+        ${MTCAD_SDL3_TARGET}
 )
 
 set_target_properties(mtcad_gui PROPERTIES

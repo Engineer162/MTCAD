@@ -19,13 +19,5 @@ set_target_properties(mtcad_kernel PROPERTIES
     SOVERSION ${PROJECT_VERSION_MAJOR}
 )
 
-# Use libuv for cross-platform threading, fetch if not present
-include(FetchContent)
-FetchContent_Declare(
-    libuv
-    GIT_REPOSITORY https://github.com/libuv/libuv.git
-    GIT_TAG v1.44.2
-)
-FetchContent_MakeAvailable(libuv)
-
+# Use libuv for cross-platform threading.
 target_link_libraries(mtcad_kernel PRIVATE uv)

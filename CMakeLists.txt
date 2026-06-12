@@ -12,6 +12,13 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+find_package(Vulkan REQUIRED)
+
+add_subdirectory(third_party/SDL)
+add_subdirectory(third_party/libuv)
+
+set(MTCAD_IMGUI_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui)
+
 add_subdirectory(kernel)
 
 if(MTCAD_BUILD_GUI)
