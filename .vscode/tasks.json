@@ -68,6 +68,16 @@
       ],
       "group": "build",
       "problemMatcher": []
+    },
+    {
+      "label": "Inno: build installer",
+      "type": "shell",
+      "command": "iscc",
+      "args": [
+        "${workspaceFolder}/installer/MTCAD.iss"
+      ],
+      "group": "build",
+      "problemMatcher": []
     }
   ],
   "inputs": [
