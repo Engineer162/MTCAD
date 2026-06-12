@@ -28,7 +28,10 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 
+// Windows specific macros
 #if defined(_WIN32)
+#include <windows.h>
+#include <shlobj.h>
 #ifndef MTCAD_PREFER_HIGH_PERFORMANCE_GPU
 #define MTCAD_PREFER_HIGH_PERFORMANCE_GPU 1
 #endif
@@ -74,6 +77,37 @@ static std::string trim_copy(const std::string& value) {
     }
     const size_t end = value.find_last_not_of(ws);
     return value.substr(start, end - start + 1);
+}
+
+static std::filesystem::path get_settings_directory()
+{
+#if defined(_WIN32)
+
+    PWSTR path = nullptr;
+
+    HRESULT hr = SHGetKnownFolderPath(
+        FOLDERID_RoamingAppData,
+        0,
+        nullptr,
+        &path);
+
+    if (SUCCEEDED(hr) && path != nullptr)
+    {
+        std::filesystem::path result(path);
+        CoTaskMemFree(path);
+
+        result /= "MTCAD";
+
+        std::error_code ec;
+        std::filesystem::create_directories(result, ec);
+
+        return result;
+    }
+
+#endif
+
+    // Fallback to binary directory if we cant get an appdata path.
+    return std::filesystem::current_path();
 }
 
 static bool load_user_settings_ini(const char* file_path, UserSettings* out_settings) {
@@ -570,12 +604,15 @@ int main() {
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, title, message.c_str(), nullptr);
     };
 
-    const std::string user_settings_file = "mtcad_user.ini";
+    const std::filesystem::path settings_dir = get_settings_directory();
+
+    const std::filesystem::path user_settings_file = settings_dir / "user_settings.ini";
+
     initialize_theme_manager("assets/themes");
     UserSettings applied_settings;
     applied_settings.window_x = SDL_WINDOWPOS_CENTERED;
     applied_settings.window_y = SDL_WINDOWPOS_CENTERED;
-    load_user_settings_ini(user_settings_file.c_str(), &applied_settings);
+    load_user_settings_ini(user_settings_file.string().c_str(), &applied_settings);
 
     const mtcad_kernel_version version = mtcad_kernel_get_version();
 
@@ -631,6 +668,10 @@ int main() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
+    static std::string imgui_ini_path =
+    (settings_dir / "imgui.ini").string();
+    io.IniFilename = imgui_ini_path.c_str();
+
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
@@ -998,7 +1039,7 @@ int main() {
                     io.ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;
                 }
 
-                save_user_settings_ini(user_settings_file.c_str(), applied_settings);
+                save_user_settings_ini(user_settings_file.string().c_str(), applied_settings);
             }
 
             if (settings_result.cancel_pressed || !settings_open) {
@@ -1177,7 +1218,7 @@ int main() {
         applied_settings.window_height = saved_window_h;
     }
     applied_settings.window_fullscreen = (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) != 0;
-    save_user_settings_ini(user_settings_file.c_str(), applied_settings);
+    save_user_settings_ini(user_settings_file.string().c_str(), applied_settings);
 
     VkResult err = vkDeviceWaitIdle(g_device);
     if (err != VK_SUCCESS && err != VK_ERROR_DEVICE_LOST) {
