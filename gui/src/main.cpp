@@ -1167,6 +1167,11 @@ int main() {
                 extrude_window.SetSourceFillId(-1);
             }
             tool_window.Render(viewport_canvas_pos, viewport_canvas_size);
+
+            const mtcad::SketchPaletteSettings& palette_settings = tool_window.GetSettings();
+            viewport_window.SetSketchGridVisible(palette_settings.show_grid);
+            viewport_window.SetSnapToGridEnabled(palette_settings.show_snap);
+
             extrude_window.Render(viewport_canvas_pos, viewport_canvas_size);
 
             if (extrude_window.IsOpen() && extrude_window.HasPreviewBody()) {

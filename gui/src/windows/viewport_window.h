@@ -48,6 +48,8 @@ public:
     void FinishSketchMode();
     void CancelSketchMode();
     void SetLayoutGridVisible(bool enabled);
+    void SetSketchGridVisible(bool enabled);
+    void SetSnapToGridEnabled(bool enabled);
     bool ProjectToScreen(const Vec3& world, const ImVec2& canvas_pos, const ImVec2& canvas_size, ImVec2& screen) const;
     Vec3 ScreenToWorldPlane(const ImVec2& screen_pos, const ImVec2& canvas_pos, const ImVec2& canvas_size, SketchPlane plane) const;
     bool ConsumeSelectedSketchPlane(SketchPlane* out_plane);
@@ -99,6 +101,8 @@ private:
     ImGuiMouseButton drag_button_ = ImGuiMouseButton_Right;
     ImGuiMouseButton orbit_button_ = ImGuiMouseButton_Left;
     bool show_layout_grid_ = true;
+    bool sketch_grid_visible_ = true;
+    bool snap_to_grid_enabled_ = true;
     bool show_axes_ = true;
     bool show_hud_ = true;
     bool ortho_mode_ = false;

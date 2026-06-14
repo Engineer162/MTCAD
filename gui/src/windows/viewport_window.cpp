@@ -236,6 +236,100 @@ static std::vector<ImVec2> ClipPolygonAgainstConvexClip2D(const std::vector<ImVe
     return output;
 }
 
+static float PerpendicularDistanceToLine(const ImVec2& p, const ImVec2& a, const ImVec2& b) {
+    const float vx = b.x - a.x;
+    const float vy = b.y - a.y;
+    const float wx = p.x - a.x;
+    const float wy = p.y - a.y;
+
+    const float vv = vx * vx + vy * vy;
+    if (vv < 1e-8f) {
+        const float dx = p.x - a.x;
+        const float dy = p.y - a.y;
+        return std::sqrt(dx * dx + dy * dy);
+    }
+
+    const float t = (wx * vx + wy * vy) / vv;
+    const float proj_x = a.x + vx * t;
+    const float proj_y = a.y + vy * t;
+    const float dx = p.x - proj_x;
+    const float dy = p.y - proj_y;
+    return std::sqrt(dx * dx + dy * dy);
+}
+
+static void SimplifyRdpOpen(const std::vector<ImVec2>& pts, int first, int last, float epsilon, std::vector<bool>& keep) {
+    if (last <= first + 1) {
+        return;
+    }
+
+    float max_dist = -1.0f;
+    int index = -1;
+    for (int i = first + 1; i < last; ++i) {
+        const float d = PerpendicularDistanceToLine(pts[(size_t)i], pts[(size_t)first], pts[(size_t)last]);
+        if (d > max_dist) {
+            max_dist = d;
+            index = i;
+        }
+    }
+
+    if (index != -1 && max_dist > epsilon) {
+        keep[(size_t)index] = true;
+        SimplifyRdpOpen(pts, first, index, epsilon, keep);
+        SimplifyRdpOpen(pts, index, last, epsilon, keep);
+    }
+}
+
+static std::vector<ImVec2> SimplifyClosedPolygon(const std::vector<ImVec2>& polygon, float epsilon) {
+    if (polygon.size() < 4) {
+        return polygon;
+    }
+
+    ImVec2 centroid = ImVec2(0.0f, 0.0f);
+    for (const ImVec2& p : polygon) {
+        centroid.x += p.x;
+        centroid.y += p.y;
+    }
+    centroid.x /= (float)polygon.size();
+    centroid.y /= (float)polygon.size();
+
+    int start_idx = 0;
+    float max_dist_sq = -1.0f;
+    for (int i = 0; i < (int)polygon.size(); ++i) {
+        const float dx = polygon[(size_t)i].x - centroid.x;
+        const float dy = polygon[(size_t)i].y - centroid.y;
+        const float d2 = dx * dx + dy * dy;
+        if (d2 > max_dist_sq) {
+            max_dist_sq = d2;
+            start_idx = i;
+        }
+    }
+
+    std::vector<ImVec2> open;
+    open.reserve(polygon.size() + 1);
+    for (int i = 0; i < (int)polygon.size(); ++i) {
+        open.push_back(polygon[(size_t)((start_idx + i) % (int)polygon.size())]);
+    }
+    open.push_back(open.front());
+
+    std::vector<bool> keep(open.size(), false);
+    keep.front() = true;
+    keep.back() = true;
+    SimplifyRdpOpen(open, 0, (int)open.size() - 1, epsilon, keep);
+
+    std::vector<ImVec2> simplified;
+    simplified.reserve(open.size());
+    for (size_t i = 0; i + 1 < open.size(); ++i) {
+        if (keep[i]) {
+            simplified.push_back(open[i]);
+        }
+    }
+
+    if (simplified.size() < 3) {
+        return polygon;
+    }
+    return simplified;
+}
+
 // Triangulate polygon defined by 2D points using ear clipping. Returns list of triangle index triples.
 static std::vector<std::array<int,3>> TriangulatePolygon(const std::vector<ImVec2>& pts) {
     std::vector<std::array<int,3>> tris;
@@ -887,6 +981,14 @@ void ViewportWindow::SetLayoutGridVisible(bool enabled) {
     show_layout_grid_ = enabled;
 }
 
+void ViewportWindow::SetSketchGridVisible(bool enabled) {
+    sketch_grid_visible_ = enabled;
+}
+
+void ViewportWindow::SetSnapToGridEnabled(bool enabled) {
+    snap_to_grid_enabled_ = enabled;
+}
+
 void ViewportWindow::SetSolidMode(bool enabled) {
     if (enabled) {
         ortho_mode_ = false;
@@ -1507,7 +1609,7 @@ void ViewportWindow::Render(const ImGuiIO& io) {
         );
     }
 
-    if (sketch_mode_active_ && active_sketch_plane_ != SketchPlane_None) {
+    if (sketch_mode_active_ && active_sketch_plane_ != SketchPlane_None && sketch_grid_visible_) {
         DrawAdaptiveSketchGrid(draw_list, canvas_pos, canvas_size);
     }
 
@@ -1601,6 +1703,8 @@ void ViewportWindow::Render(const ImGuiIO& io) {
         // Test for hover on each polygon
         hovered_polygon_index_ = -1;
         hovered_overlap_index_ = -1;
+        bool pending_polygon_selection = false;
+        ImVec2 pending_polygon_selection_mouse = ImVec2(0.0f, 0.0f);
         if (hovered) {
             const ImVec2 mouse_pos = io.MousePos;
 
@@ -1659,13 +1763,8 @@ void ViewportWindow::Render(const ImGuiIO& io) {
                     selected_polygon_world_points_.push_back(ScreenToWorldPlane(pt, canvas_pos, canvas_size, sketch_geometry_plane_));
                 }
             } else if (hovered_polygon_index_ != -1 && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                selected_polygon_index_ = hovered_polygon_index_;
-                selected_overlap_index_ = -1;
-                selected_polygon_points_ = polys2[hovered_polygon_index_];
-                selected_polygon_world_points_.clear();
-                for (const ImVec2& pt : selected_polygon_points_) {
-                    selected_polygon_world_points_.push_back(ScreenToWorldPlane(pt, canvas_pos, canvas_size, sketch_geometry_plane_));
-                }
+                pending_polygon_selection = true;
+                pending_polygon_selection_mouse = mouse_pos;
             } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
                 selected_polygon_points_.clear();
                 selected_polygon_world_points_.clear();
@@ -1798,6 +1897,159 @@ void ViewportWindow::Render(const ImGuiIO& io) {
                         }
                     }
                 }
+            }
+        }
+
+        if (pending_polygon_selection && hovered_polygon_index_ >= 0 && hovered_polygon_index_ < (int)polys2.size()) {
+            std::set<std::pair<int, int>> occupied_cells;
+            occupied_cells.clear();
+
+            for (const FillSpan& span : fill_spans) {
+                if (span.polygon_index != hovered_polygon_index_) {
+                    continue;
+                }
+
+                std::vector<std::pair<float, float>> cutouts;
+                for (const auto& overlap : overlap_spans) {
+                    if (overlap.y != span.y) continue;
+                    const int oi = overlap.overlap_idx;
+                    if (oi < 0 || oi >= (int)overlap_regions.size()) continue;
+                    const auto& idxs = overlap_regions[oi].polygon_indices;
+                    if (std::find(idxs.begin(), idxs.end(), span.polygon_index) == idxs.end()) continue;
+                    cutouts.emplace_back(overlap.x0, overlap.x1);
+                }
+
+                std::sort(cutouts.begin(), cutouts.end(), [](const auto& lhs, const auto& rhs) {
+                    if (lhs.first != rhs.first) {
+                        return lhs.first < rhs.first;
+                    }
+                    return lhs.second < rhs.second;
+                });
+
+                std::vector<std::pair<float, float>> visible_segments;
+                float cursor = span.x0;
+                for (const auto& cutout : cutouts) {
+                    const float cut_x0 = (std::max)(cutout.first, span.x0);
+                    const float cut_x1 = (std::min)(cutout.second, span.x1);
+                    if (cut_x1 <= cut_x0) {
+                        continue;
+                    }
+                    if (cut_x0 > cursor) {
+                        visible_segments.emplace_back(cursor, cut_x0);
+                    }
+                    cursor = (std::max)(cursor, cut_x1);
+                }
+                if (cursor < span.x1) {
+                    visible_segments.emplace_back(cursor, span.x1);
+                }
+
+                for (const auto& seg : visible_segments) {
+                    const int x_start = (int)std::floor(seg.first);
+                    const int x_end = (int)std::ceil(seg.second);
+                    for (int x = x_start; x < x_end; ++x) {
+                        const float center_x = (float)x + 0.5f;
+                        if (center_x >= seg.first && center_x <= seg.second) {
+                            occupied_cells.insert({x, span.y});
+                        }
+                    }
+                }
+            }
+
+            std::set<std::pair<int, int>> selected_component;
+            if (!occupied_cells.empty()) {
+                std::pair<int, int> seed = {(int)std::floor(pending_polygon_selection_mouse.x), (int)std::floor(pending_polygon_selection_mouse.y)};
+                if (occupied_cells.find(seed) == occupied_cells.end()) {
+                    seed = *occupied_cells.begin();
+                }
+
+                std::vector<std::pair<int, int>> queue;
+                queue.push_back(seed);
+                selected_component.insert(seed);
+
+                for (size_t qi = 0; qi < queue.size(); ++qi) {
+                    const int cx = queue[qi].first;
+                    const int cy = queue[qi].second;
+                    const std::pair<int, int> neighbors[4] = {
+                        {cx + 1, cy},
+                        {cx - 1, cy},
+                        {cx, cy + 1},
+                        {cx, cy - 1},
+                    };
+
+                    for (const auto& n : neighbors) {
+                        if (occupied_cells.find(n) == occupied_cells.end()) {
+                            continue;
+                        }
+                        if (selected_component.insert(n).second) {
+                            queue.push_back(n);
+                        }
+                    }
+                }
+            }
+
+            std::vector<std::pair<ImVec2, ImVec2>> boundary_segments;
+            boundary_segments.reserve(selected_component.size() * 4);
+            auto has_cell = [&](int x, int y) {
+                return selected_component.find({x, y}) != selected_component.end();
+            };
+
+            for (const auto& cell : selected_component) {
+                const int x = cell.first;
+                const int y = cell.second;
+
+                if (!has_cell(x, y - 1)) {
+                    boundary_segments.push_back({ImVec2((float)x, (float)y), ImVec2((float)x + 1.0f, (float)y)});
+                }
+                if (!has_cell(x + 1, y)) {
+                    boundary_segments.push_back({ImVec2((float)x + 1.0f, (float)y), ImVec2((float)x + 1.0f, (float)y + 1.0f)});
+                }
+                if (!has_cell(x, y + 1)) {
+                    boundary_segments.push_back({ImVec2((float)x + 1.0f, (float)y + 1.0f), ImVec2((float)x, (float)y + 1.0f)});
+                }
+                if (!has_cell(x - 1, y)) {
+                    boundary_segments.push_back({ImVec2((float)x, (float)y + 1.0f), ImVec2((float)x, (float)y)});
+                }
+            }
+
+            std::vector<std::vector<ImVec2>> non_overlap_polys = BuildPolygonsFromSegments2D(boundary_segments);
+            std::vector<ImVec2> chosen_poly;
+
+            auto point_in_poly = [](const ImVec2& p, const std::vector<ImVec2>& pts) {
+                if (pts.size() < 3) {
+                    return false;
+                }
+                bool inside = false;
+                for (size_t i = 0, j = pts.size() - 1; i < pts.size(); j = i++) {
+                    const ImVec2& a = pts[i];
+                    const ImVec2& b = pts[j];
+                    const bool intersects = ((a.y > p.y) != (b.y > p.y)) &&
+                        (p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x);
+                    if (intersects) {
+                        inside = !inside;
+                    }
+                }
+                return inside;
+            };
+
+            for (const auto& poly : non_overlap_polys) {
+                if (point_in_poly(pending_polygon_selection_mouse, poly)) {
+                    chosen_poly = poly;
+                    break;
+                }
+            }
+
+            if (chosen_poly.size() < 3) {
+                chosen_poly = polys2[hovered_polygon_index_];
+            }
+
+            chosen_poly = SimplifyClosedPolygon(chosen_poly, 1.5f);
+
+            selected_polygon_index_ = hovered_polygon_index_;
+            selected_overlap_index_ = -1;
+            selected_polygon_points_ = chosen_poly;
+            selected_polygon_world_points_.clear();
+            for (const ImVec2& pt : selected_polygon_points_) {
+                selected_polygon_world_points_.push_back(ScreenToWorldPlane(pt, canvas_pos, canvas_size, sketch_geometry_plane_));
             }
         }
 
@@ -1953,7 +2205,7 @@ void ViewportWindow::Render(const ImGuiIO& io) {
     if (sketch_mode_active_ && hovered) {
         const ImVec2 mouse_screen = io.MousePos;
         const SnapTarget snap_target = ResolveSnapTarget(mouse_screen, canvas_pos, canvas_size);
-        const Vec3 snapped_pos = snap_target.world;
+        const Vec3 cursor_world = snap_target.valid ? snap_target.world : ScreenToWorldPlane(mouse_screen, canvas_pos, canvas_size);
         const bool left_clicked = ImGui::IsMouseClicked(ImGuiMouseButton_Left);
         bool started_new_shape = false;
 
@@ -1996,8 +2248,8 @@ void ViewportWindow::Render(const ImGuiIO& io) {
         if (active_sketch_tool_ == SketchToolMode::Line) {
             // Handle line start point click (only if not already drawing)
             if (!is_drawing_line_ && awaiting_line_start_ && left_clicked) {
-                line_start_ = snap_target.world;
-                line_end_ = snap_target.world;
+                line_start_ = cursor_world;
+                line_end_ = cursor_world;
                 line_start_snap_ = snap_target;
                 line_end_snap_ = snap_target;
                 current_line_group_id_ = next_segment_group_++;
@@ -2009,7 +2261,7 @@ void ViewportWindow::Render(const ImGuiIO& io) {
 
             // Handle second click to finish line and start new one
             if (is_drawing_line_ && left_clicked && !started_new_shape) {
-                line_end_ = snap_target.world;
+                line_end_ = cursor_world;
                 line_end_snap_ = snap_target;
                 CommitLineSegment(line_start_, line_end_, line_start_snap_, snap_target);
                 line_start_ = line_end_;
@@ -2021,7 +2273,7 @@ void ViewportWindow::Render(const ImGuiIO& io) {
             }
 
             if (is_drawing_line_) {
-                line_end_ = snap_target.world;
+                line_end_ = cursor_world;
                 line_end_snap_ = snap_target;
                 DrawLine3D(draw_list, line_start_, line_end_, IM_COL32(100, 200, 255, 255), 2.0f, canvas_pos, canvas_size);
             }
@@ -2045,15 +2297,15 @@ void ViewportWindow::Render(const ImGuiIO& io) {
             }
         } else if (active_sketch_tool_ == SketchToolMode::Rectangle) {
             if (!is_drawing_rectangle_ && awaiting_rectangle_start_ && left_clicked) {
-                rectangle_start_ = snapped_pos;
-                rectangle_end_ = snapped_pos;
+                rectangle_start_ = cursor_world;
+                rectangle_end_ = cursor_world;
                 is_drawing_rectangle_ = true;
                 awaiting_rectangle_start_ = false;
                 started_new_shape = true;
             }
 
             if (is_drawing_rectangle_) {
-                rectangle_end_ = snapped_pos;
+                rectangle_end_ = cursor_world;
 
                 Vec3 a = rectangle_start_;
                 Vec3 b = rectangle_start_;
@@ -2129,15 +2381,15 @@ void ViewportWindow::Render(const ImGuiIO& io) {
             }
         } else if (active_sketch_tool_ == SketchToolMode::Circle) {
             if (!is_drawing_circle_ && awaiting_circle_start_ && left_clicked) {
-                circle_center_ = snapped_pos;
-                circle_edge_ = snapped_pos;
+                circle_center_ = cursor_world;
+                circle_edge_ = cursor_world;
                 is_drawing_circle_ = true;
                 awaiting_circle_start_ = false;
                 started_new_shape = true;
             }
 
             if (is_drawing_circle_) {
-                circle_edge_ = snapped_pos;
+                circle_edge_ = cursor_world;
                 float radius = 0.0f;
                 switch (active_sketch_plane_) {
                     case SketchPlane_XY:
@@ -2741,18 +2993,20 @@ ViewportWindow::SnapTarget ViewportWindow::ResolveSnapTarget(const ImVec2& mouse
     bool has_best = false;
 
     const Vec3 mouse_world = ScreenToWorldPlane(mouse_screen, canvas_pos, canvas_size);
-    const Vec3 grid_world = SnapToGrid(mouse_world);
+    if (snap_to_grid_enabled_) {
+        const Vec3 grid_world = SnapToGrid(mouse_world);
 
-    ImVec2 grid_screen;
-    if (ProjectToScreen(grid_world, canvas_pos, canvas_size, grid_screen)) {
-        const float dx = grid_screen.x - mouse_screen.x;
-        const float dy = grid_screen.y - mouse_screen.y;
-        const float dist_sq = dx * dx + dy * dy;
-        result.world = grid_world;
-        result.valid = true;
-        result.snapped_to_grid = true;
-        best_dist_sq = dist_sq;
-        has_best = true;
+        ImVec2 grid_screen;
+        if (ProjectToScreen(grid_world, canvas_pos, canvas_size, grid_screen)) {
+            const float dx = grid_screen.x - mouse_screen.x;
+            const float dy = grid_screen.y - mouse_screen.y;
+            const float dist_sq = dx * dx + dy * dy;
+            result.world = grid_world;
+            result.valid = true;
+            result.snapped_to_grid = true;
+            best_dist_sq = dist_sq;
+            has_best = true;
+        }
     }
 
     auto score_candidate = [&](const Vec3& world, bool snapped_to_segment_interior, int segment_index, float segment_t) {
@@ -2764,6 +3018,9 @@ ViewportWindow::SnapTarget ViewportWindow::ResolveSnapTarget(const ImVec2& mouse
         const float dx = screen_pos.x - mouse_screen.x;
         const float dy = screen_pos.y - mouse_screen.y;
         const float dist_sq = dx * dx + dy * dy;
+        if (dist_sq > snap_threshold_sq) {
+            return;
+        }
         if (!has_best || dist_sq <= best_dist_sq + 0.25f) {
             result.world = world;
             result.valid = true;
