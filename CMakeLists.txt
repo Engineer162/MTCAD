@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(MTCAD VERSION 0.1.0 LANGUAGES C CXX)
+project(MTCAD VERSION 0.2.0 LANGUAGES C CXX)
 
 option(MTCAD_BUILD_GUI "Build the desktop ImGui GUI" ON)
 
