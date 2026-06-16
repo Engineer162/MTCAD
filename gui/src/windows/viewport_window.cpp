@@ -1502,7 +1502,7 @@ void ViewportWindow::Render(const ImGuiIO& io) {
             info_last_scroll_time_ = ImGui::GetTime();
         }
 
-        if (ImGui::IsMouseDragging(drag_button_)) {
+        if (ImGui::IsMouseDragging(orbit_button_)) {
             yaw_ -= io.MouseDelta.x * 0.01f;
             pitch_ += io.MouseDelta.y * 0.01f;
             if (pitch_ > kHalfPi) {
@@ -1514,7 +1514,7 @@ void ViewportWindow::Render(const ImGuiIO& io) {
             info_last_scroll_time_ = ImGui::GetTime();
         }
 
-        if (ImGui::IsMouseDragging(orbit_button_)) {
+        if (ImGui::IsMouseDragging(drag_button_)) {
             const float pan_speed = 0.0035f * distance_;
             const Vec3 right = CameraRight();
             const Vec3 up = CameraUp();
