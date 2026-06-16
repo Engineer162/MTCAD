@@ -1,6 +1,11 @@
 build/
+build-debug-find/
+build-sdl-diag/
+_CPack_Packages/
 .vs/
 out/
 release/
 Output/
 .VSCodeCounter/
+*.deb
+*.rpm

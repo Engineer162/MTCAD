@@ -81,8 +81,9 @@ static std::string trim_copy(const std::string& value) {
 
 static std::filesystem::path get_settings_directory()
 {
-#if defined(_WIN32)
+    std::filesystem::path result;
 
+#if defined(_WIN32)
     PWSTR path = nullptr;
 
     HRESULT hr = SHGetKnownFolderPath(
@@ -93,21 +94,45 @@ static std::filesystem::path get_settings_directory()
 
     if (SUCCEEDED(hr) && path != nullptr)
     {
-        std::filesystem::path result(path);
+        result = std::filesystem::path(path) / "MTCAD";
         CoTaskMemFree(path);
-
-        result /= "MTCAD";
-
-        std::error_code ec;
-        std::filesystem::create_directories(result, ec);
-
-        return result;
     }
-
+#else
+    const char* xdg_config_home = std::getenv("XDG_CONFIG_HOME");
+    if (xdg_config_home != nullptr && xdg_config_home[0] != '\0') {
+        result = std::filesystem::path(xdg_config_home) / "MTCAD";
+    } else {
+        const char* home = std::getenv("HOME");
+        if (home != nullptr && home[0] != '\0') {
+            result = std::filesystem::path(home) / ".config" / "MTCAD";
+        }
+    }
 #endif
 
-    // Fallback to binary directory if we cant get an appdata path.
-    return std::filesystem::current_path();
+    if (result.empty()) {
+        // Fallback if we cannot resolve a writable user config directory.
+        return std::filesystem::path(".") / "MTCAD";
+    }
+
+    std::error_code ec;
+    std::filesystem::create_directories(result, ec);
+    return result;
+}
+
+static void ensure_default_imgui_ini(const std::filesystem::path& settings_dir)
+{
+    const std::filesystem::path imgui_ini_path = settings_dir / "imgui.ini";
+    if (std::filesystem::exists(imgui_ini_path)) {
+        return;
+    }
+
+    const std::filesystem::path default_imgui_ini = std::filesystem::current_path() / "imgui.ini";
+    if (!std::filesystem::exists(default_imgui_ini)) {
+        return;
+    }
+
+    std::error_code ec;
+    std::filesystem::copy_file(default_imgui_ini, imgui_ini_path, std::filesystem::copy_options::overwrite_existing, ec);
 }
 
 static bool load_user_settings_ini(const char* file_path, UserSettings* out_settings) {
@@ -167,7 +192,7 @@ static bool load_user_settings_ini(const char* file_path, UserSettings* out_sett
     loaded.icon_scale = clampf(loaded.icon_scale, 0.80f, 2.00f);
     loaded.theme_index = clamp_theme_index(loaded.theme_index);
     if (loaded.viewport_pan_button < 0 || loaded.viewport_pan_button > 2) {
-        loaded.viewport_pan_button = 1;
+        loaded.viewport_pan_button = 0;
     }
     if (loaded.viewport_orbit_button < 0 || loaded.viewport_orbit_button > 2) {
         loaded.viewport_orbit_button = 1;
@@ -605,14 +630,15 @@ int main() {
     };
 
     const std::filesystem::path settings_dir = get_settings_directory();
-
     const std::filesystem::path user_settings_file = settings_dir / "user_settings.ini";
+    const std::filesystem::path imgui_ini_file = settings_dir / "imgui.ini";
 
     initialize_theme_manager("assets/themes");
     UserSettings applied_settings;
     applied_settings.window_x = SDL_WINDOWPOS_CENTERED;
     applied_settings.window_y = SDL_WINDOWPOS_CENTERED;
     load_user_settings_ini(user_settings_file.string().c_str(), &applied_settings);
+    ensure_default_imgui_ini(settings_dir);
 
     const mtcad_kernel_version version = mtcad_kernel_get_version();
 
@@ -668,8 +694,7 @@ int main() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
-    static std::string imgui_ini_path =
-    (settings_dir / "imgui.ini").string();
+    static std::string imgui_ini_path = imgui_ini_file.string();
     io.IniFilename = imgui_ini_path.c_str();
 
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
@@ -1019,7 +1044,7 @@ int main() {
                 pending_settings.icon_scale = clampf(pending_settings.icon_scale, 0.80f, 2.00f);
                 pending_settings.theme_index = clamp_theme_index(pending_settings.theme_index);
                 if (pending_settings.viewport_pan_button < 0 || pending_settings.viewport_pan_button > 2) {
-                    pending_settings.viewport_pan_button = 1;
+                    pending_settings.viewport_pan_button = 0;
                 }
                 if (pending_settings.viewport_orbit_button < 0 || pending_settings.viewport_orbit_button > 2) {
                     pending_settings.viewport_orbit_button = 1;

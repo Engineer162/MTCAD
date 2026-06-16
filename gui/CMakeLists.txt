@@ -1,6 +1,6 @@
 find_package(Vulkan REQUIRED)
 
-set(MTCAD_SDL3_TARGET SDL3::SDL3)
+set(MTCAD_SDL3_TARGET SDL3::SDL3-static)
 
 add_library(mtcad_imgui STATIC
     ${MTCAD_IMGUI_DIR}/imgui.cpp
@@ -60,18 +60,37 @@ target_link_libraries(mtcad_gui
 
 set_target_properties(mtcad_gui PROPERTIES
     OUTPUT_NAME mtcad_gui
+    INSTALL_RPATH "$ORIGIN"
+    INSTALL_RPATH_USE_LINK_RPATH TRUE
+)
+
+if(CMAKE_CONFIGURATION_TYPES)
+    set(MTCAD_OUTPUT_CONFIG "$<LOWER_CASE:$<CONFIG>>")
+else()
+    if(CMAKE_BUILD_TYPE)
+        string(TOLOWER "${CMAKE_BUILD_TYPE}" MTCAD_OUTPUT_CONFIG)
+    else()
+        # Single-config generators default to this staging folder when no
+        # explicit CMAKE_BUILD_TYPE is provided.
+        set(MTCAD_OUTPUT_CONFIG "release")
+    endif()
+endif()
+
+set(MTCAD_RELEASE_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/${MTCAD_OUTPUT_CONFIG}")
+set(MTCAD_RELEASE_ASSETS_DIR "${MTCAD_RELEASE_OUTPUT_DIR}/assets")
+
+add_custom_command(TARGET mtcad_gui POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${MTCAD_RELEASE_OUTPUT_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${MTCAD_RELEASE_ASSETS_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:mtcad_gui>" "${MTCAD_RELEASE_OUTPUT_DIR}/"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:mtcad_kernel>" "${MTCAD_RELEASE_OUTPUT_DIR}/"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/gui/assets" "${MTCAD_RELEASE_ASSETS_DIR}"
+    VERBATIM
 )
 
 if(WIN32)
-    set(MTCAD_RELEASE_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/$<LOWER_CASE:$<CONFIG>>")
-    set(MTCAD_RELEASE_ASSETS_DIR "${MTCAD_RELEASE_OUTPUT_DIR}/assets")
-
     add_custom_command(TARGET mtcad_gui POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${MTCAD_RELEASE_OUTPUT_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${MTCAD_RELEASE_ASSETS_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:mtcad_gui>" "${MTCAD_RELEASE_OUTPUT_DIR}/"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:mtcad_gui> "${MTCAD_RELEASE_OUTPUT_DIR}/"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/gui/assets" "${MTCAD_RELEASE_ASSETS_DIR}"
         COMMAND_EXPAND_LISTS
         VERBATIM
     )

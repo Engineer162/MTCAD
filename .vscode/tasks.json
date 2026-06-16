@@ -78,6 +78,22 @@
       ],
       "group": "build",
       "problemMatcher": []
+    },
+    {
+      "label": "DEB: build installer",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "build",
+        "--target",
+        "package"
+      ],
+      "dependsOn": [
+        "cmake: build all"
+      ],
+      "group": "build",
+      "problemMatcher": []
     }
   ],
   "inputs": [

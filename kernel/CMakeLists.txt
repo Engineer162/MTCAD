@@ -11,6 +11,7 @@ target_include_directories(mtcad_kernel
 target_compile_definitions(mtcad_kernel
     PRIVATE
         MTCAD_KERNEL_BUILD_DLL
+    _POSIX_C_SOURCE=200809L
 )
 
 set_target_properties(mtcad_kernel PROPERTIES
