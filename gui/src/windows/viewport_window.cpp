@@ -420,6 +420,47 @@ static std::vector<ImVec2> ProjectPolygonToScreen(const std::vector<ViewportWind
     return projected;
 }
 
+static float ComputeExtrudedBodyDepthKey(
+    const std::vector<ViewportWindow::Vec3>& polygon,
+    float depth_world,
+    const ViewportWindow::Vec3& camera_pos,
+    const ViewportWindow::Vec3& camera_forward) {
+    if (polygon.empty()) {
+        return -1e30f;
+    }
+
+    ViewportWindow::Vec3 centroid = {0.0f, 0.0f, 0.0f};
+    for (const auto& p : polygon) {
+        centroid.x += p.x;
+        centroid.y += p.y;
+        centroid.z += p.z;
+    }
+    const float inv_n = 1.0f / (float)polygon.size();
+    centroid.x *= inv_n;
+    centroid.y *= inv_n;
+    centroid.z *= inv_n;
+
+    if (depth_world > 0.0f) {
+        const ViewportWindow::SketchPlane plane = InferSketchPlaneFromWorldPolygon(polygon);
+        switch (plane) {
+            case ViewportWindow::SketchPlane_XY:
+                centroid.z += depth_world * 0.5f;
+                break;
+            case ViewportWindow::SketchPlane_YZ:
+                centroid.x += depth_world * 0.5f;
+                break;
+            case ViewportWindow::SketchPlane_XZ:
+                centroid.y += depth_world * 0.5f;
+                break;
+            case ViewportWindow::SketchPlane_None:
+            default:
+                break;
+        }
+    }
+
+    return Dot(Sub(centroid, camera_pos), camera_forward);
+}
+
 static void DrawExtrudedBodyPreview(ImDrawList* draw_list, const std::vector<ViewportWindow::Vec3>& polygon, float depth_world, const ViewportWindow* viewport, const ImVec2& canvas_pos, const ImVec2& canvas_size, bool solid_render, const ViewportWindow::Vec3& camera_pos, const ViewportWindow::Vec3& camera_forward) {
     if (draw_list == nullptr || viewport == nullptr || polygon.size() < 3) {
         return;
@@ -616,24 +657,45 @@ static void DrawExtrudedBodyPreview(ImDrawList* draw_list, const std::vector<Vie
 
     // Painter's algorithm: sort all faces by camera depth, keeping each face grouped.
     std::stable_sort(faces.begin(), faces.end(), [](const FaceItem& a, const FaceItem& b) {
-        return a.depth_key > b.depth_key;
+    return a.depth_key > b.depth_key;
     });
 
+    // Render all faces in sorted order.
     for (const auto& face : faces) {
         if (face.pts.size() == 3) {
-            draw_list->AddTriangleFilled(face.pts[0], face.pts[1], face.pts[2], face.fill);
+            // Optimized path for triangles.
+            draw_list->AddTriangleFilled(
+                face.pts[0],
+                face.pts[1],
+                face.pts[2],
+                face.fill
+            );
         } else if (face.pts.size() >= 3) {
-            draw_list->AddConvexPolyFilled(face.pts.data(), (int)face.pts.size(), face.fill);
+            // Render convex polygons with three or more vertices.
+            draw_list->AddConvexPolyFilled(
+                face.pts.data(),
+                (int)face.pts.size(),
+                face.fill
+            );
         }
     }
 
+    // Sort outlines using the same depth ordering as faces.
     std::stable_sort(outlines.begin(), outlines.end(), [](const LineItem& a, const LineItem& b) {
         return a.depth_key > b.depth_key;
     });
 
+    // Draw polygon outlines in back to front order.
     for (const auto& line : outlines) {
         if (line.pts.size() >= 2) {
-            draw_list->AddPolyline(line.pts.data(), (int)line.pts.size(), line.color, ImDrawFlags_Closed, line.thickness);
+            // Draw a closed polyline around the polygon boundary.
+            draw_list->AddPolyline(
+                line.pts.data(),
+                (int)line.pts.size(),
+                line.color,
+                ImDrawFlags_Closed,
+                line.thickness
+            );
         }
     }
 
@@ -1700,11 +1762,82 @@ void ViewportWindow::Render(const ImGuiIO& io) {
             }
         }
         
+        auto make_selection = [&](int polygon_index, int overlap_index, const std::vector<ImVec2>& screen_points, const std::vector<Vec3>& world_points) {
+            SelectedFillRegion selection;
+            selection.polygon_index = polygon_index;
+            selection.overlap_index = overlap_index;
+            selection.fill_id = next_selected_fill_id_++;
+            if (next_selected_fill_id_ < 1) {
+                next_selected_fill_id_ = 1;
+            }
+            selection.selection_id = selection.fill_id;
+            selection.screen_points = screen_points;
+            selection.world_points = world_points;
+            return selection;
+        };
+
+        auto selection_matches = [](const SelectedFillRegion& lhs, const SelectedFillRegion& rhs) {
+            return lhs.polygon_index == rhs.polygon_index && lhs.overlap_index == rhs.overlap_index;
+        };
+
+        auto remove_selection = [&](int polygon_index, int overlap_index) {
+            selected_fill_regions_.erase(
+                std::remove_if(selected_fill_regions_.begin(), selected_fill_regions_.end(), [&](const SelectedFillRegion& selection) {
+                    return selection.polygon_index == polygon_index && selection.overlap_index == overlap_index;
+                }),
+                selected_fill_regions_.end());
+        };
+
+        auto apply_selection = [&](const SelectedFillRegion& selection, bool additive) {
+            if (!additive) {
+                selected_fill_regions_.clear();
+            } else {
+                const bool already_selected = std::any_of(
+                    selected_fill_regions_.begin(),
+                    selected_fill_regions_.end(),
+                    [&](const SelectedFillRegion& existing) {
+                        return existing.polygon_index == selection.polygon_index && existing.overlap_index == selection.overlap_index;
+                    });
+                if (already_selected) {
+                    remove_selection(selection.polygon_index, selection.overlap_index);
+                    if (selected_fill_regions_.empty()) {
+                        selected_polygon_index_ = -1;
+                        selected_overlap_index_ = -1;
+                        selected_polygon_points_.clear();
+                        selected_polygon_world_points_.clear();
+                    } else {
+                        const SelectedFillRegion& last_selection = selected_fill_regions_.back();
+                        selected_polygon_index_ = last_selection.polygon_index;
+                        selected_overlap_index_ = last_selection.overlap_index;
+                        selected_polygon_points_ = last_selection.screen_points;
+                        selected_polygon_world_points_ = last_selection.world_points;
+                    }
+                    return;
+                }
+            }
+
+            selected_fill_regions_.push_back(selection);
+            selected_polygon_index_ = selection.polygon_index;
+            selected_overlap_index_ = selection.overlap_index;
+            selected_polygon_points_ = selection.screen_points;
+            selected_polygon_world_points_ = selection.world_points;
+        };
+
+        auto clear_selection = [&]() {
+            selected_fill_regions_.clear();
+            selected_polygon_index_ = -1;
+            selected_overlap_index_ = -1;
+            next_selected_fill_id_ = 1;
+            selected_polygon_points_.clear();
+            selected_polygon_world_points_.clear();
+        };
+
         // Test for hover on each polygon
         hovered_polygon_index_ = -1;
         hovered_overlap_index_ = -1;
         bool pending_polygon_selection = false;
         ImVec2 pending_polygon_selection_mouse = ImVec2(0.0f, 0.0f);
+        const bool ctrl_pressed = io.KeyCtrl;
         if (hovered) {
             const ImVec2 mouse_pos = io.MousePos;
 
@@ -1755,19 +1888,17 @@ void ViewportWindow::Render(const ImGuiIO& io) {
             
             // Handle click on hovered polygon
             if (hovered_overlap_index_ != -1 && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                selected_overlap_index_ = hovered_overlap_index_;
-                selected_polygon_index_ = -1;
-                selected_polygon_points_ = overlap_regions[hovered_overlap_index_].pts;
-                selected_polygon_world_points_.clear();
-                for (const ImVec2& pt : selected_polygon_points_) {
-                    selected_polygon_world_points_.push_back(ScreenToWorldPlane(pt, canvas_pos, canvas_size, sketch_geometry_plane_));
+                std::vector<Vec3> world_points;
+                world_points.reserve(overlap_regions[hovered_overlap_index_].pts.size());
+                for (const ImVec2& pt : overlap_regions[hovered_overlap_index_].pts) {
+                    world_points.push_back(ScreenToWorldPlane(pt, canvas_pos, canvas_size, sketch_geometry_plane_));
                 }
+                apply_selection(make_selection(-1, hovered_overlap_index_, overlap_regions[hovered_overlap_index_].pts, world_points), ctrl_pressed);
             } else if (hovered_polygon_index_ != -1 && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
                 pending_polygon_selection = true;
                 pending_polygon_selection_mouse = mouse_pos;
-            } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                selected_polygon_points_.clear();
-                selected_polygon_world_points_.clear();
+            } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ctrl_pressed) {
+                clear_selection();
             }
         }
         
@@ -1899,6 +2030,24 @@ void ViewportWindow::Render(const ImGuiIO& io) {
                 }
             }
         }
+
+        auto is_selected_polygon = [&](int polygon_index) {
+            for (const auto& selection : selected_fill_regions_) {
+                if (selection.polygon_index == polygon_index && selection.overlap_index == -1) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        auto is_selected_overlap = [&](int overlap_index) {
+            for (const auto& selection : selected_fill_regions_) {
+                if (selection.overlap_index == overlap_index) {
+                    return true;
+                }
+            }
+            return false;
+        };
 
         if (pending_polygon_selection && hovered_polygon_index_ >= 0 && hovered_polygon_index_ < (int)polys2.size()) {
             std::set<std::pair<int, int>> occupied_cells;
@@ -2044,13 +2193,12 @@ void ViewportWindow::Render(const ImGuiIO& io) {
 
             chosen_poly = SimplifyClosedPolygon(chosen_poly, 1.5f);
 
-            selected_polygon_index_ = hovered_polygon_index_;
-            selected_overlap_index_ = -1;
-            selected_polygon_points_ = chosen_poly;
-            selected_polygon_world_points_.clear();
-            for (const ImVec2& pt : selected_polygon_points_) {
-                selected_polygon_world_points_.push_back(ScreenToWorldPlane(pt, canvas_pos, canvas_size, sketch_geometry_plane_));
+            std::vector<Vec3> world_points;
+            world_points.reserve(chosen_poly.size());
+            for (const ImVec2& pt : chosen_poly) {
+                world_points.push_back(ScreenToWorldPlane(pt, canvas_pos, canvas_size, sketch_geometry_plane_));
             }
+            apply_selection(make_selection(hovered_polygon_index_, -1, chosen_poly, world_points), ctrl_pressed);
         }
 
         for (const FillSpan& span : fill_spans) {
@@ -2095,7 +2243,7 @@ void ViewportWindow::Render(const ImGuiIO& io) {
             }
 
             ImU32 fill_color = polygon_fill_default;
-            if (span.polygon_index == selected_polygon_index_) {
+            if (is_selected_polygon(span.polygon_index)) {
                 fill_color = polygon_fill_selected;
             } else if (span.polygon_index == hovered_polygon_index_) {
                 fill_color = polygon_fill_hover;
@@ -2112,7 +2260,7 @@ void ViewportWindow::Render(const ImGuiIO& io) {
         // Render overlap regions using the same scanline grid as base fills to avoid seams
         std::vector<ImU32> overlap_colors(overlap_regions.size(), overlap_fill_default);
         for (int overlap_idx = 0; overlap_idx < (int)overlap_regions.size(); ++overlap_idx) {
-            if (overlap_idx == selected_overlap_index_) overlap_colors[overlap_idx] = overlap_fill_selected;
+            if (is_selected_overlap(overlap_idx)) overlap_colors[overlap_idx] = overlap_fill_selected;
             else if (overlap_idx == hovered_overlap_index_) overlap_colors[overlap_idx] = overlap_fill_hover;
         }
 
@@ -2137,17 +2285,45 @@ void ViewportWindow::Render(const ImGuiIO& io) {
             if (pts2.size() < 3) continue;
             draw_list->AddPolyline(pts2.data(), (int)pts2.size(), polygon_outline, ImDrawFlags_Closed, 1.5f);
         }
+    }
 
-        if (extruded_body_final_visible_ && extruded_body_final_polygon_.size() >= 3) {
-            const Vec3 cam_pos = CameraPosition();
-            const Vec3 cam_forward = CameraForward();
-            DrawExtrudedBodyPreview(draw_list, extruded_body_final_polygon_, extruded_body_final_depth_world_, this, canvas_pos, canvas_size, true, cam_pos, cam_forward);
+    if (extruded_body_final_visible_ && !extruded_body_final_polygons_.empty()) {
+        const Vec3 cam_pos = CameraPosition();
+        const Vec3 cam_forward = CameraForward();
+        std::vector<size_t> order(extruded_body_final_polygons_.size());
+        for (size_t i = 0; i < order.size(); ++i) {
+            order[i] = i;
         }
+        std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+            const float da = ComputeExtrudedBodyDepthKey(extruded_body_final_polygons_[a], extruded_body_final_depth_world_, cam_pos, cam_forward);
+            const float db = ComputeExtrudedBodyDepthKey(extruded_body_final_polygons_[b], extruded_body_final_depth_world_, cam_pos, cam_forward);
+            return da > db;
+        });
+        for (size_t idx : order) {
+            const auto& polygon = extruded_body_final_polygons_[idx];
+            if (polygon.size() >= 3) {
+                DrawExtrudedBodyPreview(draw_list, polygon, extruded_body_final_depth_world_, this, canvas_pos, canvas_size, true, cam_pos, cam_forward);
+            }
+        }
+    }
 
-        if (extruded_body_preview_visible_ && extruded_body_preview_polygon_.size() >= 3) {
-            const Vec3 cam_pos = CameraPosition();
-            const Vec3 cam_forward = CameraForward();
-            DrawExtrudedBodyPreview(draw_list, extruded_body_preview_polygon_, extruded_body_preview_depth_world_, this, canvas_pos, canvas_size, false, cam_pos, cam_forward);
+    if (extruded_body_preview_visible_ && !extruded_body_preview_polygons_.empty()) {
+        const Vec3 cam_pos = CameraPosition();
+        const Vec3 cam_forward = CameraForward();
+        std::vector<size_t> order(extruded_body_preview_polygons_.size());
+        for (size_t i = 0; i < order.size(); ++i) {
+            order[i] = i;
+        }
+        std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+            const float da = ComputeExtrudedBodyDepthKey(extruded_body_preview_polygons_[a], extruded_body_preview_depth_world_, cam_pos, cam_forward);
+            const float db = ComputeExtrudedBodyDepthKey(extruded_body_preview_polygons_[b], extruded_body_preview_depth_world_, cam_pos, cam_forward);
+            return da > db;
+        });
+        for (size_t idx : order) {
+            const auto& polygon = extruded_body_preview_polygons_[idx];
+            if (polygon.size() >= 3) {
+                DrawExtrudedBodyPreview(draw_list, polygon, extruded_body_preview_depth_world_, this, canvas_pos, canvas_size, false, cam_pos, cam_forward);
+            }
         }
     }
 
@@ -3213,6 +3389,29 @@ bool ViewportWindow::GetCommittedLineSegments(std::vector<LineSegment>* out_segm
     return true;
 }
 
+bool ViewportWindow::GetSelectedFillProfiles(std::vector<int>* out_fill_ids, std::vector<std::vector<Vec3>>* out_polygons_world) const {
+    if (out_fill_ids == nullptr || out_polygons_world == nullptr) {
+        return false;
+    }
+    if (selected_fill_regions_.empty()) {
+        return false;
+    }
+
+    out_fill_ids->clear();
+    out_polygons_world->clear();
+    out_fill_ids->reserve(selected_fill_regions_.size());
+    out_polygons_world->reserve(selected_fill_regions_.size());
+    for (const auto& selection : selected_fill_regions_) {
+        if (selection.world_points.size() < 3) {
+            continue;
+        }
+        out_fill_ids->push_back(selection.selection_id);
+        out_polygons_world->push_back(selection.world_points);
+    }
+
+    return !out_fill_ids->empty();
+}
+
 bool ViewportWindow::GetSelectedPolygonWorldPoints(std::vector<Vec3>* out_points) const {
     if (out_points == nullptr || selected_polygon_world_points_.size() < 3) {
         return false;
@@ -3232,25 +3431,67 @@ bool ViewportWindow::GetSelectedFillIds(int* out_polygon_index, int* out_overlap
 }
 
 void ViewportWindow::SetExtrudedBodyPreview(const std::vector<Vec3>& polygon_points, float depth_world) {
+    extruded_body_preview_polygons_.clear();
+    if (polygon_points.size() >= 3) {
+        extruded_body_preview_polygons_.push_back(polygon_points);
+    }
     extruded_body_preview_polygon_ = polygon_points;
     extruded_body_preview_depth_world_ = depth_world;
-    extruded_body_preview_visible_ = polygon_points.size() >= 3;
+    extruded_body_preview_visible_ = !extruded_body_preview_polygons_.empty();
+}
+
+void ViewportWindow::SetExtrudedBodyPreviewBatch(const std::vector<std::vector<Vec3>>& polygons, float depth_world) {
+    extruded_body_preview_polygons_.clear();
+    for (const auto& polygon : polygons) {
+        if (polygon.size() >= 3) {
+            extruded_body_preview_polygons_.push_back(polygon);
+        }
+    }
+
+    extruded_body_preview_polygon_.clear();
+    if (!extruded_body_preview_polygons_.empty()) {
+        extruded_body_preview_polygon_ = extruded_body_preview_polygons_.front();
+    }
+    extruded_body_preview_depth_world_ = depth_world;
+    extruded_body_preview_visible_ = !extruded_body_preview_polygons_.empty();
 }
 
 void ViewportWindow::ClearExtrudedBodyPreview() {
     extruded_body_preview_polygon_.clear();
+    extruded_body_preview_polygons_.clear();
     extruded_body_preview_depth_world_ = 0.0f;
     extruded_body_preview_visible_ = false;
 }
 
 void ViewportWindow::SetExtrudedBodyFinal(const std::vector<Vec3>& polygon_points, float depth_world) {
+    extruded_body_final_polygons_.clear();
+    if (polygon_points.size() >= 3) {
+        extruded_body_final_polygons_.push_back(polygon_points);
+    }
     extruded_body_final_polygon_ = polygon_points;
     extruded_body_final_depth_world_ = depth_world;
-    extruded_body_final_visible_ = polygon_points.size() >= 3;
+    extruded_body_final_visible_ = !extruded_body_final_polygons_.empty();
+}
+
+void ViewportWindow::SetExtrudedBodyFinalBatch(const std::vector<std::vector<Vec3>>& polygons, float depth_world) {
+    extruded_body_final_polygons_.clear();
+    for (const auto& polygon : polygons) {
+        if (polygon.size() >= 3) {
+            extruded_body_final_polygons_.push_back(polygon);
+        }
+    }
+
+    extruded_body_final_polygon_.clear();
+    if (!extruded_body_final_polygons_.empty()) {
+        extruded_body_final_polygon_ = extruded_body_final_polygons_.front();
+    }
+    extruded_body_final_depth_world_ = depth_world;
+    extruded_body_final_visible_ = !extruded_body_final_polygons_.empty();
 }
 
 void ViewportWindow::ClearExtrudedBodyFinal() {
     extruded_body_final_polygon_.clear();
+    extruded_body_final_polygons_.clear();
     extruded_body_final_depth_world_ = 0.0f;
     extruded_body_final_visible_ = false;
 }

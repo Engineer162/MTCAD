@@ -1099,6 +1099,7 @@ int main() {
                 viewport_window.StartCircleDrawing();
             } else if (selected_tool_name != nullptr && std::strcmp(selected_tool_name, "Extrude") == 0) {
                 tool_window.Close();
+                extrude_window.ClearSourceProfiles();
                 extrude_window.Open();
             } else {
                 extrude_window.Close();
@@ -1123,19 +1124,29 @@ int main() {
         }
 
         if (extrude_window.ConsumeApplyExtrude()) {
-            viewport_window.ClearExtrudedBodyPreview();
-            viewport_window.ClearExtrudedBodyFinal();
-            if (extrude_window.HasPreviewBody()) {
-                std::vector<ViewportWindow::Vec3> body_points;
-                const std::vector<mtcad::ExtrudePoint3D>& preview_points = extrude_window.GetPreviewBodyPolygonWorld();
-                body_points.reserve(preview_points.size());
-                for (const auto& point : preview_points) {
-                    body_points.push_back({point.x, point.y, point.z});
+            bool applied_body = false;
+            if (extrude_window.HasAppliedPreviewBodies()) {
+                std::vector<std::vector<ViewportWindow::Vec3>> body_polygons;
+                const auto& preview_polygons = extrude_window.GetAppliedPreviewBodyPolygonsWorld();
+                body_polygons.reserve(preview_polygons.size());
+                for (const auto& preview_points : preview_polygons) {
+                    std::vector<ViewportWindow::Vec3> body_points;
+                    body_points.reserve(preview_points.size());
+                    for (const auto& point : preview_points) {
+                        body_points.push_back({point.x, point.y, point.z});
+                    }
+                    if (body_points.size() >= 3) {
+                        body_polygons.push_back(body_points);
+                    }
                 }
-                viewport_window.SetExtrudedBodyFinal(
-                    body_points,
-                    extrude_window.GetPreviewBodyDepthWorld()
-                );
+                if (!body_polygons.empty()) {
+                    viewport_window.SetExtrudedBodyFinalBatch(body_polygons, extrude_window.GetAppliedPreviewBodyDepthWorld());
+                    applied_body = true;
+                }
+            }
+            viewport_window.ClearExtrudedBodyPreview();
+            if (!applied_body) {
+                viewport_window.ClearExtrudedBodyFinal();
             }
             extrude_window.Close();
         }
@@ -1147,24 +1158,20 @@ int main() {
         ImVec2 viewport_canvas_pos;
         ImVec2 viewport_canvas_size;
         if (viewport_window.GetCanvasRect(&viewport_canvas_pos, &viewport_canvas_size)) {
-            std::vector<ViewportWindow::Vec3> selected_polygon_world_points;
-            if (viewport_window.GetSelectedPolygonWorldPoints(&selected_polygon_world_points)) {
-                int selected_polygon_index = -1;
-                int selected_overlap_index = -1;
-                if (viewport_window.GetSelectedFillIds(&selected_polygon_index, &selected_overlap_index)) {
-                    const int selected_fill_id = (selected_overlap_index != -1) ? selected_overlap_index : selected_polygon_index;
-                    extrude_window.SetSourceFillId(selected_fill_id);
-                } else {
-                    extrude_window.SetSourceFillId(-1);
+            std::vector<int> selected_fill_ids;
+            std::vector<std::vector<ViewportWindow::Vec3>> selected_polygons_world_points;
+            if (extrude_window.IsOpen()) {
+                extrude_window.ClearSourceProfiles();
+                if (viewport_window.GetSelectedFillProfiles(&selected_fill_ids, &selected_polygons_world_points)) {
+                    for (size_t i = 0; i < selected_polygons_world_points.size(); ++i) {
+                        std::vector<mtcad::ExtrudePoint3D> source_points;
+                        source_points.reserve(selected_polygons_world_points[i].size());
+                        for (const auto& point : selected_polygons_world_points[i]) {
+                            source_points.push_back({point.x, point.y, point.z});
+                        }
+                        extrude_window.AddSourceProfile(selected_fill_ids[i], source_points);
+                    }
                 }
-                std::vector<mtcad::ExtrudePoint3D> source_points;
-                source_points.reserve(selected_polygon_world_points.size());
-                for (const auto& point : selected_polygon_world_points) {
-                    source_points.push_back({point.x, point.y, point.z});
-                }
-                extrude_window.SetSourcePolygonWorld(source_points);
-            } else {
-                extrude_window.SetSourceFillId(-1);
             }
             tool_window.Render(viewport_canvas_pos, viewport_canvas_size);
 
@@ -1174,14 +1181,21 @@ int main() {
 
             extrude_window.Render(viewport_canvas_pos, viewport_canvas_size);
 
-            if (extrude_window.IsOpen() && extrude_window.HasPreviewBody()) {
-                std::vector<ViewportWindow::Vec3> body_points;
-                const std::vector<mtcad::ExtrudePoint3D>& preview_points = extrude_window.GetPreviewBodyPolygonWorld();
-                body_points.reserve(preview_points.size());
-                for (const auto& point : preview_points) {
-                    body_points.push_back({point.x, point.y, point.z});
+            if (extrude_window.IsOpen() && extrude_window.HasPreviewBodies()) {
+                std::vector<std::vector<ViewportWindow::Vec3>> body_polygons;
+                const auto& preview_polygons = extrude_window.GetPreviewBodyPolygonsWorld();
+                body_polygons.reserve(preview_polygons.size());
+                for (const auto& preview_points : preview_polygons) {
+                    std::vector<ViewportWindow::Vec3> body_points;
+                    body_points.reserve(preview_points.size());
+                    for (const auto& point : preview_points) {
+                        body_points.push_back({point.x, point.y, point.z});
+                    }
+                    if (body_points.size() >= 3) {
+                        body_polygons.push_back(body_points);
+                    }
                 }
-                viewport_window.SetExtrudedBodyPreview(body_points, extrude_window.GetPreviewBodyDepthWorld());
+                viewport_window.SetExtrudedBodyPreviewBatch(body_polygons, extrude_window.GetPreviewBodyDepthWorld());
             } else {
                 viewport_window.ClearExtrudedBodyPreview();
             }

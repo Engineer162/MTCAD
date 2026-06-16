@@ -16,8 +16,52 @@ void ExtrudePaletteWindow::Close() {
     open_ = false;
 }
 
+void ExtrudePaletteWindow::AddSourceProfile(int fill_id, const std::vector<ExtrudePoint3D>& polygon_points) {
+    if (fill_id < 0 || polygon_points.size() < 3) {
+        return;
+    }
+
+    source_fill_id_ = fill_id;
+    source_polygon_world_points_ = polygon_points;
+
+    for (size_t i = 0; i < source_fill_ids_.size(); ++i) {
+        if (source_fill_ids_[i] == fill_id) {
+            source_profile_polygons_world_points_[i] = polygon_points;
+            return;
+        }
+    }
+
+    source_fill_ids_.push_back(fill_id);
+    source_profile_polygons_world_points_.push_back(polygon_points);
+}
+
+void ExtrudePaletteWindow::ClearSourceProfiles() {
+    source_fill_id_ = -1;
+    source_fill_ids_.clear();
+    source_polygon_world_points_.clear();
+    source_profile_polygons_world_points_.clear();
+    preview_body_polygons_world_.clear();
+    preview_body_polygon_world_.clear();
+    preview_body_depth_world_ = 0.0f;
+    preview_body_visible_ = false;
+    applied_preview_body_polygons_world_.clear();
+    applied_preview_body_depth_world_ = 0.0f;
+}
+
+int ExtrudePaletteWindow::GetSourceProfileCount() const {
+    return (int)source_profile_polygons_world_points_.size();
+}
+
 void ExtrudePaletteWindow::SetSourcePolygonWorld(const std::vector<ExtrudePoint3D>& polygon_points) {
     source_polygon_world_points_ = polygon_points;
+    source_profile_polygons_world_points_.clear();
+    source_fill_ids_.clear();
+    if (polygon_points.size() >= 3) {
+        source_profile_polygons_world_points_.push_back(polygon_points);
+        if (source_fill_id_ >= 0) {
+            source_fill_ids_.push_back(source_fill_id_);
+        }
+    }
 }
 
 void ExtrudePaletteWindow::SetSourceFillId(int fill_id) {
@@ -25,8 +69,15 @@ void ExtrudePaletteWindow::SetSourceFillId(int fill_id) {
 }
 
 void ExtrudePaletteWindow::UpdatePreviewBody() {
-    if (source_polygon_world_points_.size() >= 3) {
-        preview_body_polygon_world_ = source_polygon_world_points_;
+    preview_body_polygons_world_.clear();
+    for (const auto& profile : source_profile_polygons_world_points_) {
+        if (profile.size() >= 3) {
+            preview_body_polygons_world_.push_back(profile);
+        }
+    }
+
+    if (!preview_body_polygons_world_.empty()) {
+        preview_body_polygon_world_ = preview_body_polygons_world_.front();
         preview_body_depth_world_ = std::max(0.0f, settings_.distance);
         preview_body_visible_ = true;
     } else {
@@ -34,6 +85,16 @@ void ExtrudePaletteWindow::UpdatePreviewBody() {
         preview_body_depth_world_ = 0.0f;
         preview_body_visible_ = false;
     }
+}
+
+void ExtrudePaletteWindow::CaptureApplyPreviewBody() {
+    applied_preview_body_polygons_world_.clear();
+    for (const auto& polygon : preview_body_polygons_world_) {
+        if (polygon.size() >= 3) {
+            applied_preview_body_polygons_world_.push_back(polygon);
+        }
+    }
+    applied_preview_body_depth_world_ = preview_body_depth_world_;
 }
 
 bool ExtrudePaletteWindow::ConsumeApplyExtrude() {
@@ -67,14 +128,39 @@ void ExtrudePaletteWindow::StartKernelJob() {
 
     std::thread([this, state, settings]() {
         try {
-            std::vector<mtcad_kernel_extrude_body_input> inputs(1);
-            std::vector<mtcad_kernel_extrude_body_result> results(1);
+            std::vector<mtcad_kernel_extrude_body_input> inputs(source_profile_polygons_world_points_.size());
+            if (inputs.empty()) {
+                std::lock_guard<std::mutex> lock(job_state_mutex_);
+                if (job_state_ == state) {
+                    state->completed = true;
+                    state->running = false;
+                    state->status_text = "No selected profiles to extrude";
+                }
+                return;
+            }
 
-            inputs[0].body_id = 0;
-            inputs[0].profile_area = settings.distance * settings.distance * 0.35;
-            inputs[0].depth = settings.distance;
-            inputs[0].taper_angle_degrees = settings.taper_angle_degrees;
-            inputs[0].operation = settings.operation;
+            std::vector<mtcad_kernel_extrude_body_result> results(inputs.size());
+
+            auto profile_area = [](const std::vector<ExtrudePoint3D>& poly) {
+                if (poly.size() < 3) {
+                    return 0.0;
+                }
+                double area = 0.0;
+                for (size_t i = 0; i < poly.size(); ++i) {
+                    const auto& a = poly[i];
+                    const auto& b = poly[(i + 1) % poly.size()];
+                    area += (double)a.x * (double)b.y - (double)b.x * (double)a.y;
+                }
+                return std::abs(area) * 0.5;
+            };
+
+            for (size_t i = 0; i < inputs.size(); ++i) {
+                inputs[i].body_id = (int)i;
+                inputs[i].profile_area = profile_area(source_profile_polygons_world_points_[i]);
+                inputs[i].depth = settings.distance;
+                inputs[i].taper_angle_degrees = settings.taper_angle_degrees;
+                inputs[i].operation = settings.operation;
+            }
 
             const size_t processed = mtcad_kernel_extrude_cut_parallel(
                 inputs.data(),
@@ -129,10 +215,14 @@ void ExtrudePaletteWindow::Render(const ImVec2& viewport_pos, const ImVec2& view
         ImGui::BeginChild("extrude_palette_content", ImVec2(0, -50), false);
 
         ImGui::TextUnformatted("Profile");
-        if (source_fill_id_ >= 0) {
-            ImGui::Text("Selected fill ID: %d", source_fill_id_);
+        if (!source_fill_ids_.empty()) {
+            ImGui::Text("Selected fills: %d", (int)source_fill_ids_.size());
+            ImGui::Text("Active fill ID: %d", source_fill_id_);
         } else {
-            ImGui::TextUnformatted("Selected fill ID: none");
+            ImGui::TextUnformatted("Selected fills: none");
+        }
+        if (ImGui::Button("Clear Selected Fills")) {
+            ClearSourceProfiles();
         }
         ImGui::Checkbox("Chain Faces", &settings_.chain_faces);
         ImGui::Checkbox("Flip Direction", &settings_.flip_direction);
@@ -161,6 +251,7 @@ void ExtrudePaletteWindow::Render(const ImVec2& viewport_pos, const ImVec2& view
         ImGui::Separator();
         ImGui::BeginGroup();
         if (ImGui::Button("Apply Extrude", ImVec2(140, 0))) {
+            CaptureApplyPreviewBody();
             apply_extrude_requested_ = true;
             StartKernelJob();
         }
@@ -182,7 +273,7 @@ void ExtrudePaletteWindow::Render(const ImVec2& viewport_pos, const ImVec2& view
                     ImGui::Text("Volume delta: %.3f", job_state_->total_volume_delta);
                     ImGui::Text("Surface work: %.3f", job_state_->total_surface_work);
                 }
-                if (!preview_body_visible_ && source_polygon_world_points_.size() < 3) {
+                if (!preview_body_visible_ && source_profile_polygons_world_points_.empty()) {
                     ImGui::TextUnformatted("Select a closed profile in the viewport first.");
                 }
             }

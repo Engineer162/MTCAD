@@ -59,11 +59,14 @@ public:
     void StartCircleDrawing();
     void CancelLineDrawing();
     bool GetCommittedLineSegments(std::vector<LineSegment>* out_segments);
+    bool GetSelectedFillProfiles(std::vector<int>* out_fill_ids, std::vector<std::vector<Vec3>>* out_polygons_world) const;
     bool GetSelectedPolygonWorldPoints(std::vector<Vec3>* out_points) const;
     bool GetSelectedFillIds(int* out_polygon_index, int* out_overlap_index) const;
     void SetExtrudedBodyPreview(const std::vector<Vec3>& polygon_points, float depth_world);
+    void SetExtrudedBodyPreviewBatch(const std::vector<std::vector<Vec3>>& polygons, float depth_world);
     void ClearExtrudedBodyPreview();
     void SetExtrudedBodyFinal(const std::vector<Vec3>& polygon_points, float depth_world);
+    void SetExtrudedBodyFinalBatch(const std::vector<std::vector<Vec3>>& polygons, float depth_world);
     void ClearExtrudedBodyFinal();
 
 private:
@@ -152,13 +155,25 @@ private:
     int selected_polygon_index_ = -1;
     int hovered_overlap_index_ = -1;
     int selected_overlap_index_ = -1;
+    struct SelectedFillRegion {
+        int polygon_index = -1;
+        int overlap_index = -1;
+        int fill_id = -1;
+        int selection_id = -1;
+        std::vector<ImVec2> screen_points;
+        std::vector<Vec3> world_points;
+    };
+    std::vector<SelectedFillRegion> selected_fill_regions_;
+    int next_selected_fill_id_ = 1;
     std::vector<ImVec2> selected_polygon_points_;
     std::vector<Vec3> selected_polygon_world_points_;
     bool extruded_body_preview_visible_ = false;
     std::vector<Vec3> extruded_body_preview_polygon_;
+    std::vector<std::vector<Vec3>> extruded_body_preview_polygons_;
     float extruded_body_preview_depth_world_ = 0.0f;
     bool extruded_body_final_visible_ = false;
     std::vector<Vec3> extruded_body_final_polygon_;
+    std::vector<std::vector<Vec3>> extruded_body_final_polygons_;
     float extruded_body_final_depth_world_ = 0.0f;
 };
 
