@@ -33,40 +33,10 @@ MTCAD/
 		stb/
 ```
 
-## Build (Windows, CMake)
+	## Build Guides
 
-1. Clone repository:
-
-```bash
-git clone --recursive https://github.com/Engineer162/MTCAD.git
-```
-
-2. Install vulkan:
- 
-```bash
-https://vulkan.lunarg.com/sdk/home
-```
-   
-3. Configure:
-
-```bash
-cmake -S . -B build
-```
-
-4. Build:
-
-```bash
-cmake --build build --config Release
-```
-
-## Build from VS Code (Ctrl+Shift+P)
-
-Use Command Palette and run one of:
-
-- `Tasks: Run Build Task` to run the default task (`cmake: build all`)
-- `Tasks: Run Task` and pick `cmake: build kernel` or `cmake: build gui`
-
-The tasks are defined in `.vscode/tasks.json` and will configure CMake automatically before building.
+	- [Windows build instructions](docs/build/windows.md)
+	- [Debian build and packaging instructions](docs/build/debian.md)
 
 ## Notes
 

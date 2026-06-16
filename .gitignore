@@ -1,4 +1,6 @@
 build/
+!docs/build/
+!docs/build/**
 build-debug-find/
 build-sdl-diag/
 _CPack_Packages/
