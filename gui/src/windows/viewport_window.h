@@ -35,8 +35,8 @@ public:
     };
 
     void Render(const ImGuiIO& io);
-    void SetDragButton(ImGuiMouseButton button);
-    ImGuiMouseButton GetDragButton() const;
+    void SetPanButton(ImGuiMouseButton button);
+    ImGuiMouseButton GetPanButton() const;
     void SetOrbitButton(ImGuiMouseButton button);
     ImGuiMouseButton GetOrbitButton() const;
     void SetSettingsIconTexture(ImTextureID texture_id);
@@ -101,7 +101,7 @@ private:
     float pitch_ = 0.65f;
     float distance_ = 26.0f;
     double info_last_scroll_time_ = -1000.0;
-    ImGuiMouseButton drag_button_ = ImGuiMouseButton_Right;
+    ImGuiMouseButton pan_button_ = ImGuiMouseButton_Right;
     ImGuiMouseButton orbit_button_ = ImGuiMouseButton_Left;
     bool show_layout_grid_ = true;
     bool sketch_grid_visible_ = true;

@@ -9,7 +9,7 @@ struct UserSettings {
     float text_scale = 1.0f;
     float icon_scale = 1.0f;
     int theme_index = 0;
-    int viewport_drag_button = 1;
+    int viewport_pan_button = 1;
     int viewport_orbit_button = 1;
     bool keyboard_navigation_enabled = true;
     std::string workspace_root;

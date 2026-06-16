@@ -940,12 +940,12 @@ const char* ViewportWindow::MouseButtonName(ImGuiMouseButton button) const {
     }
 }
 
-void ViewportWindow::SetDragButton(ImGuiMouseButton button) {
-    drag_button_ = button;
+void ViewportWindow::SetPanButton(ImGuiMouseButton button) {
+    pan_button_ = button;
 }
 
-ImGuiMouseButton ViewportWindow::GetDragButton() const {
-    return drag_button_;
+ImGuiMouseButton ViewportWindow::GetPanButton() const {
+    return pan_button_;
 }
 
 void ViewportWindow::SetOrbitButton(ImGuiMouseButton button) {
@@ -1514,7 +1514,7 @@ void ViewportWindow::Render(const ImGuiIO& io) {
             info_last_scroll_time_ = ImGui::GetTime();
         }
 
-        if (ImGui::IsMouseDragging(drag_button_)) {
+        if (ImGui::IsMouseDragging(pan_button_)) {
             const float pan_speed = 0.0035f * distance_;
             const Vec3 right = CameraRight();
             const Vec3 up = CameraUp();
@@ -2768,7 +2768,7 @@ void ViewportWindow::Render(const ImGuiIO& io) {
                 yaw_ * (180.0f / Pi),
                 pitch_ * (180.0f / Pi),
             MouseButtonName(orbit_button_),
-            MouseButtonName(drag_button_)
+            MouseButtonName(pan_button_)
         );
 
         const ImVec2 info_pos(canvas_pos.x + 12.0f, canvas_pos.y + 12.0f);

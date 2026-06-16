@@ -139,8 +139,8 @@ static bool load_user_settings_ini(const char* file_path, UserSettings* out_sett
                 loaded.icon_scale = std::stof(value);
             } else if (key == "theme_index") {
                 loaded.theme_index = std::stoi(value);
-            } else if (key == "viewport_drag_button") {
-                loaded.viewport_drag_button = std::stoi(value);
+            } else if (key == "viewport_pan_button") {
+                loaded.viewport_pan_button = std::stoi(value);
             } else if (key == "viewport_orbit_button") {
                 loaded.viewport_orbit_button = std::stoi(value);
             } else if (key == "keyboard_navigation") {
@@ -166,8 +166,8 @@ static bool load_user_settings_ini(const char* file_path, UserSettings* out_sett
     loaded.text_scale = clampf(loaded.text_scale, 0.80f, 2.00f);
     loaded.icon_scale = clampf(loaded.icon_scale, 0.80f, 2.00f);
     loaded.theme_index = clamp_theme_index(loaded.theme_index);
-    if (loaded.viewport_drag_button < 0 || loaded.viewport_drag_button > 2) {
-        loaded.viewport_drag_button = 1;
+    if (loaded.viewport_pan_button < 0 || loaded.viewport_pan_button > 2) {
+        loaded.viewport_pan_button = 1;
     }
     if (loaded.viewport_orbit_button < 0 || loaded.viewport_orbit_button > 2) {
         loaded.viewport_orbit_button = 1;
@@ -199,7 +199,7 @@ static bool save_user_settings_ini(const char* file_path, const UserSettings& se
     out << "text_scale=" << settings.text_scale << "\n";
     out << "icon_scale=" << settings.icon_scale << "\n";
     out << "theme_index=" << clamp_theme_index(settings.theme_index) << "\n";
-    out << "viewport_drag_button=" << settings.viewport_drag_button << "\n";
+    out << "viewport_pan_button=" << settings.viewport_pan_button << "\n";
     out << "viewport_orbit_button=" << settings.viewport_orbit_button << "\n";
     out << "keyboard_navigation=" << (settings.keyboard_navigation_enabled ? 1 : 0) << "\n";
     out << "workspace_root=" << settings.workspace_root << "\n";
@@ -211,7 +211,7 @@ static bool save_user_settings_ini(const char* file_path, const UserSettings& se
     return out.good();
 }
 
-static ImGuiMouseButton drag_button_from_index(int index) {
+static ImGuiMouseButton pan_button_from_index(int index) {
     switch (index) {
         case 0: return ImGuiMouseButton_Left;
         case 1: return ImGuiMouseButton_Right;
@@ -850,7 +850,7 @@ int main() {
 
     float ui_text_scale = applied_settings.text_scale;
     float ui_icon_scale = applied_settings.icon_scale;
-    viewport_window.SetDragButton(drag_button_from_index(applied_settings.viewport_drag_button));
+    viewport_window.SetPanButton(pan_button_from_index(applied_settings.viewport_pan_button));
     viewport_window.SetOrbitButton(orbit_button_from_index(applied_settings.viewport_orbit_button));
     apply_loaded_icon_textures();
     toolbar_window.SetIconScale(ui_icon_scale);
@@ -1018,8 +1018,8 @@ int main() {
                 pending_settings.text_scale = clampf(pending_settings.text_scale, 0.80f, 2.00f);
                 pending_settings.icon_scale = clampf(pending_settings.icon_scale, 0.80f, 2.00f);
                 pending_settings.theme_index = clamp_theme_index(pending_settings.theme_index);
-                if (pending_settings.viewport_drag_button < 0 || pending_settings.viewport_drag_button > 2) {
-                    pending_settings.viewport_drag_button = 1;
+                if (pending_settings.viewport_pan_button < 0 || pending_settings.viewport_pan_button > 2) {
+                    pending_settings.viewport_pan_button = 1;
                 }
                 if (pending_settings.viewport_orbit_button < 0 || pending_settings.viewport_orbit_button > 2) {
                     pending_settings.viewport_orbit_button = 1;
@@ -1029,7 +1029,7 @@ int main() {
                 ui_text_scale = applied_settings.text_scale;
                 ui_icon_scale = applied_settings.icon_scale;
                 apply_imgui_theme(applied_settings.theme_index);
-                viewport_window.SetDragButton(drag_button_from_index(applied_settings.viewport_drag_button));
+                viewport_window.SetPanButton(pan_button_from_index(applied_settings.viewport_pan_button));
                 viewport_window.SetOrbitButton(orbit_button_from_index(applied_settings.viewport_orbit_button));
                 workspace_browser_window.SetRootDirectory(applied_settings.workspace_root);
 

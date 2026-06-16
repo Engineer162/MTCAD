@@ -20,8 +20,8 @@ SettingsWindowResult SettingsWindow::Render(bool* open, UserSettings* pending_se
     ImGui::Begin("MTCAD Settings", &settings_open, settings_flags);
 
     ImGui::TextUnformatted("Mouse Inputs");
-    static const char* drag_button_options[] = {"Left", "Right", "Middle"};
-    ImGui::Combo("Viewport Drag Button", &pending_settings->viewport_drag_button, drag_button_options, IM_ARRAYSIZE(drag_button_options));
+    static const char* pan_button_options[] = {"Left", "Right", "Middle"};
+    ImGui::Combo("Viewport Pan Button", &pending_settings->viewport_pan_button, pan_button_options, IM_ARRAYSIZE(pan_button_options));
     static const char* orbit_button_options[] = {"Left", "Right", "Middle"};
     ImGui::Combo("Viewport Orbit Button", &pending_settings->viewport_orbit_button, orbit_button_options, IM_ARRAYSIZE(orbit_button_options));
     ImGui::Separator();
