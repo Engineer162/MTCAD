@@ -1,6 +1,6 @@
 [Setup]
 AppName=MTCAD
-AppVersion=0.1.0
+AppVersion=0.2.0
 DefaultDirName={autopf}\MTCAD
 DefaultGroupName=MTCAD
 OutputBaseFilename=MTCAD_Setup
@@ -14,7 +14,6 @@ ArchitecturesInstallIn64BitMode=x64
 
 Source: "..\release\mtcad_gui.exe"; DestDir: "{app}"
 Source: "..\release\mtcad_kernel.dll"; DestDir: "{app}"
-Source: "..\release\SDL3.dll"; DestDir: "{app}"
 Source: "..\release\uv.dll"; DestDir: "{app}"
 
 Source: "..\release\assets\*"; DestDir: "{app}\assets"; Flags: recursesubdirs
