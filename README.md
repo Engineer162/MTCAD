@@ -33,10 +33,10 @@ MTCAD/
 		stb/
 ```
 
-	## Build Guides
+## Build Guides
 
-	- [Windows build instructions](docs/build/windows.md)
-	- [Debian build and packaging instructions](docs/build/debian.md)
+- [Windows build instructions](docs/build/windows.md)
+- [Debian build and packaging instructions](docs/build/debian.md)
 
 ## Notes
 
