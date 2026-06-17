@@ -1,6 +1,6 @@
 [Setup]
 AppName=MTCAD
-AppVersion=0.2.0
+AppVersion=0.2.1
 DefaultDirName={autopf}\MTCAD
 DefaultGroupName=MTCAD
 OutputBaseFilename=MTCAD_Setup

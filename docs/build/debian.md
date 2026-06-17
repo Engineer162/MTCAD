@@ -16,37 +16,31 @@ Install CMake
 sudo apt install cmake
 ```
 
-## Build
+## Build and Create the .deb
 
 1. Clone the repository:
 
 ```bash
 git clone --recursive https://github.com/Engineer162/MTCAD.git
+cd MTCAD
 ```
 
-2. Configure and build:
+2. Configure, build, and package for Debian:
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake -DCPACK_GENERATOR=DEB -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-```
-
-## Create the .deb
-
-Build the package target:
-
-```bash
 cmake --build build --target package
 ```
 
-The generated package is written to `installer/`.
+The generated `.deb` is written to the `build/` directory (for example `build/mtcad_0.2.1_amd64.deb`).
 
 ## Install
 
-Install the package with:
+Install the .deb with:
 
 ```bash
-sudo dpkg -i installer/mtcad_0.1.0_amd64.deb
+sudo dpkg -i build/mtcad_0.2.1_amd64.deb
 ```
 
 Then launch the app with:
