@@ -8,6 +8,14 @@ Install the development packages needed by the build:
 sudo apt install libvulkan-dev libx11-dev libxext-dev libxrandr-dev libxrender-dev libxfixes-dev libxcursor-dev libxi-dev libxss-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev wayland-protocols libegl1-mesa-dev libgl1-mesa-dev
 ```
 
+## CMake
+
+Install CMake
+
+```bash
+sudo apt install cmake
+```
+
 ## Build
 
 1. Clone the repository:

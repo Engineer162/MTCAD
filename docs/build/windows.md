@@ -5,20 +5,25 @@
 ```bash
 git clone --recursive https://github.com/Engineer162/MTCAD.git
 ```
+2. Install CMake from:
 
-2. Install the Vulkan SDK from:
+```bash
+https://cmake.org/download/
+```
+
+3. Install the Vulkan SDK from:
 
 ```bash
 https://vulkan.lunarg.com/sdk/home
 ```
 
-3. Configure:
+4. Configure:
 
 ```bash
 cmake -S . -B build
 ```
 
-4. Build:
+5. Build:
 
 ```bash
 cmake --build build --config Release
