@@ -79,6 +79,24 @@ static std::string trim_copy(const std::string& value) {
     return value.substr(start, end - start + 1);
 }
 
+static std::filesystem::path get_app_data_directory()
+{
+    const char* env_dir = std::getenv("MTCAD_APP_DATA_DIR");
+    if (env_dir != nullptr && env_dir[0] != '\0') {
+        return std::filesystem::path(env_dir);
+    }
+    return std::filesystem::current_path() / "assets";
+}
+
+static std::filesystem::path get_app_lib_directory()
+{
+    const char* env_dir = std::getenv("MTCAD_APP_LIB_DIR");
+    if (env_dir != nullptr && env_dir[0] != '\0') {
+        return std::filesystem::path(env_dir);
+    }
+    return std::filesystem::current_path();
+}
+
 static std::filesystem::path get_settings_directory()
 {
     std::filesystem::path result;
@@ -126,7 +144,7 @@ static void ensure_default_imgui_ini(const std::filesystem::path& settings_dir)
         return;
     }
 
-    const std::filesystem::path default_imgui_ini = std::filesystem::current_path() / "imgui.ini";
+    const std::filesystem::path default_imgui_ini = get_app_lib_directory() / "imgui.ini";
     if (!std::filesystem::exists(default_imgui_ini)) {
         return;
     }
@@ -259,7 +277,7 @@ static std::string resolve_icon_path(const char* icon_name) {
         return std::string();
     }
 
-    const std::filesystem::path icon_path = std::filesystem::path("assets") / "icons" / (std::string(icon_name) + ".png");
+    const std::filesystem::path icon_path = get_app_data_directory() / "icons" / (std::string(icon_name) + ".png");
     if (std::filesystem::exists(icon_path)) {
         return icon_path.string();
     }
@@ -633,7 +651,9 @@ int main() {
     const std::filesystem::path user_settings_file = settings_dir / "user_settings.ini";
     const std::filesystem::path imgui_ini_file = settings_dir / "imgui.ini";
 
-    initialize_theme_manager("assets/themes");
+    const std::filesystem::path app_data_directory = get_app_data_directory();
+    const std::string themes_directory = (app_data_directory / "themes").string();
+    initialize_theme_manager(themes_directory.c_str());
     UserSettings applied_settings;
     applied_settings.window_x = SDL_WINDOWPOS_CENTERED;
     applied_settings.window_y = SDL_WINDOWPOS_CENTERED;

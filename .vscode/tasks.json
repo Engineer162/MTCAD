@@ -80,15 +80,33 @@
       "problemMatcher": []
     },
     {
-      "label": "DEB: build installer",
+      "label": "DEB: build package",
       "type": "shell",
-      "command": "cmake",
+      "command": "cpack",
       "args": [
-        "--build",
-        "build",
-        "--target",
-        "package"
+        "-G",
+        "DEB"
       ],
+      "options": {
+        "cwd": "${workspaceFolder}/build"
+      },
+      "dependsOn": [
+        "cmake: build all"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "RPM: build package",
+      "type": "shell",
+      "command": "cpack",
+      "args": [
+        "-G",
+        "RPM"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/build"
+      },
       "dependsOn": [
         "cmake: build all"
       ],

@@ -16,8 +16,6 @@ target_compile_definitions(mtcad_kernel
 
 set_target_properties(mtcad_kernel PROPERTIES
     OUTPUT_NAME mtcad_kernel
-    VERSION ${PROJECT_VERSION}
-    SOVERSION ${PROJECT_VERSION_MAJOR}
 )
 
 # Use libuv for cross-platform threading.
