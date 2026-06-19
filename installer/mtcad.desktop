@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=MTCAD
+Comment=Multithreaded CAD application
+Exec=mtcad
+Icon=mtcad
+Terminal=false
+Categories=Graphics;Engineering;
+StartupNotify=true
+StartupWMClass=MTCAD

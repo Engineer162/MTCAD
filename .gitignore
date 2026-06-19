@@ -1,4 +1,6 @@
 build/
+AppDir/
+dist/
 !docs/build/
 !docs/build/**
 build-debug-find/

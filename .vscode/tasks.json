@@ -112,6 +112,63 @@
       ],
       "group": "build",
       "problemMatcher": []
+    },
+    {
+      "label": "cmake: make AppDir",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--install",
+        "build",
+        "--prefix",
+        "/usr"
+      ],
+      "options": {
+        "env": {
+          "DESTDIR": "${workspaceFolder}/AppDir"
+        }
+      },
+      "dependsOn": [
+        "cmake: build all"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "cmake: build appdir",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "build",
+        "--target",
+        "appdir",
+        "--config",
+        "${input:buildType}"
+      ],
+      "dependsOn": [
+        "cmake: make AppDir"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "AppImage: build",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "build",
+        "--target",
+        "appimage",
+        "--config",
+        "${input:buildType}"
+      ],
+      "dependsOn": [
+        "cmake: build appdir"
+      ],
+      "group": "build",
+      "problemMatcher": []
     }
   ],
   "inputs": [
