@@ -1,4 +1,4 @@
-#include "icon_loader.h"
+#include "icon_manager.h"
 
 #include <algorithm>
 #include <cstdint>

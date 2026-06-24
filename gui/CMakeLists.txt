@@ -24,14 +24,15 @@ target_link_libraries(mtcad_imgui
 )
 
 add_executable(mtcad_gui
-    src/icon_loader.cpp
     src/main.cpp
-    src/theme_manager.cpp
     src/tools/tool_manager.cpp
     src/tools/tools_init.cpp
     src/tools/sketch/create/line_tool.cpp
     src/tools/sketch/create/rectangle_tool.cpp
     src/tools/sketch/create/circle_tool.cpp
+    src/managers/path_manager.cpp
+    src/managers/theme_manager.cpp
+    src/managers/icon_manager.cpp
     src/windows/settings_window.cpp
     src/windows/extrude_window.cpp
     src/windows/tool_window.cpp

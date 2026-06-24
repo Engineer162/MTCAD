@@ -9,11 +9,15 @@
 #include <string>
 #include <vector>
 
-#include "icon_loader.h"
+// Kernel
 #include "mtcad/kernel.h"
-#include "theme_manager.h"
-#include "tools/tools_init.h"
-#include "tools/tool_manager.h"
+
+// Managers
+#include "managers/icon_manager.h"
+#include "managers/theme_manager.h"
+#include "managers/path_manager.h"
+
+// Windows
 #include "windows/settings_window.h"
 #include "windows/extrude_window.h"
 #include "windows/tool_window.h"
@@ -21,22 +25,28 @@
 #include "windows/viewport_window.h"
 #include "windows/workspace_browser_window.h"
 
+// Tools
+#include "tools/tools_init.h"
+#include "tools/tool_manager.h"
+
+// Imgui
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_vulkan.h"
 
+// SDL
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 
 // Windows specific macros
 #if defined(_WIN32)
-#include <windows.h>
 #include <shlobj.h>
 #ifndef MTCAD_PREFER_HIGH_PERFORMANCE_GPU
 #define MTCAD_PREFER_HIGH_PERFORMANCE_GPU 1
 #endif
 #endif
 
+// Enable high performance GPU on Windows
 #if defined(_WIN32) && (MTCAD_PREFER_HIGH_PERFORMANCE_GPU != 0)
 extern "C" {
 __declspec(dllexport) unsigned long NvOptimusEnablement = 0x00000001;
@@ -77,64 +87,6 @@ static std::string trim_copy(const std::string& value) {
     }
     const size_t end = value.find_last_not_of(ws);
     return value.substr(start, end - start + 1);
-}
-
-static std::filesystem::path get_app_data_directory()
-{
-    const char* env_dir = std::getenv("MTCAD_APP_DATA_DIR");
-    if (env_dir != nullptr && env_dir[0] != '\0') {
-        return std::filesystem::path(env_dir);
-    }
-    return std::filesystem::current_path() / "assets";
-}
-
-static std::filesystem::path get_app_lib_directory()
-{
-    const char* env_dir = std::getenv("MTCAD_APP_LIB_DIR");
-    if (env_dir != nullptr && env_dir[0] != '\0') {
-        return std::filesystem::path(env_dir);
-    }
-    return std::filesystem::current_path();
-}
-
-static std::filesystem::path get_settings_directory()
-{
-    std::filesystem::path result;
-
-#if defined(_WIN32)
-    PWSTR path = nullptr;
-
-    HRESULT hr = SHGetKnownFolderPath(
-        FOLDERID_RoamingAppData,
-        0,
-        nullptr,
-        &path);
-
-    if (SUCCEEDED(hr) && path != nullptr)
-    {
-        result = std::filesystem::path(path) / "MTCAD";
-        CoTaskMemFree(path);
-    }
-#else
-    const char* xdg_config_home = std::getenv("XDG_CONFIG_HOME");
-    if (xdg_config_home != nullptr && xdg_config_home[0] != '\0') {
-        result = std::filesystem::path(xdg_config_home) / "MTCAD";
-    } else {
-        const char* home = std::getenv("HOME");
-        if (home != nullptr && home[0] != '\0') {
-            result = std::filesystem::path(home) / ".config" / "MTCAD";
-        }
-    }
-#endif
-
-    if (result.empty()) {
-        // Fallback if we cannot resolve a writable user config directory.
-        return std::filesystem::path(".") / "MTCAD";
-    }
-
-    std::error_code ec;
-    std::filesystem::create_directories(result, ec);
-    return result;
 }
 
 static void ensure_default_imgui_ini(const std::filesystem::path& settings_dir)

@@ -1,6 +1,6 @@
 #include "settings_window.h"
 
-#include "../theme_manager.h"
+#include "../managers/theme_manager.h"
 
 #include <cstring>
 #include <filesystem>
