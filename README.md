@@ -9,10 +9,10 @@ Modular CAD architecture with:
 
 Keeping the kernel in C behind a stable C API makes it reusable for:
 
-- desktop GUI apps
-- web backends (native service process)
-- Server seperation
-- language bindings later (Python, Rust, etc.)
+- desktop GUI apps (What MTCAD is)
+- web backends (Kinda like Onshape on the web)
+- Server seperation (for running the kernel on a server, and the GUI on a laptop/workstation)
+- language bindings later (Python, Rust, etc. although this is last on my TODO list)
 
 ## Core project layout
 
@@ -38,6 +38,7 @@ MTCAD/
 - [Windows build instructions](docs/build/windows.md)
 - [Debian build and packaging instructions](docs/build/debian.md)
 - [Fedora build and packaging instructions](docs/build/fedora.md)
+  
+Follow the build instructions for Fedora if you are using Red Hat Enterprise, CentOS, openSUSE, SUSE Linux Enterprise, AlmaLinux, Oracle Linux, Mageia, OpenMandriva Lx or others that use the .rpm package manager.  
 
-Follow the build instructions for Fedora if you are using Red Hat Enterprise, CentOS, openSUSE, SUSE Linux Enterprise, AlmaLinux, Oracle Linux, Mageia, OpenMandriva Lx or others that use the .rpm package manager.
 Follow the build instructions for Debian if you are using Ubuntu, Linux Mint or others that use the .deb package format
