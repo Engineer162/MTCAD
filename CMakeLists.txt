@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(MTCAD VERSION 0.2.2 LANGUAGES C CXX)
+project(MTCAD VERSION 0.3.0 LANGUAGES C CXX)
 
 option(MTCAD_BUILD_GUI "Build the desktop ImGui GUI" ON)
 
@@ -30,7 +30,9 @@ set(SDL_SHARED OFF CACHE BOOL "Build shared library" FORCE)
 set(SDL_STATIC ON CACHE BOOL "Build static library" FORCE)
 
 add_subdirectory(third_party/SDL)
+set(CMAKE_SKIP_INSTALL_RULES ON)
 add_subdirectory(third_party/libuv)
+set(CMAKE_SKIP_INSTALL_RULES OFF)
 
 set(MTCAD_IMGUI_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui)
 
