@@ -7,16 +7,23 @@ OutputBaseFilename=MTCAD_Setup
 Compression=lzma
 SolidCompression=yes
 
-ArchitecturesAllowed=x64
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+
+[Installer]
+SetupIconFile=resources\mtcad.ico
+
+UninstallDisplayIcon={app}\resources\mtcad.ico
+
 
 [Files]
-
 Source: "..\release\mtcad_gui.exe"; DestDir: "{app}"
 Source: "..\release\mtcad_kernel.dll"; DestDir: "{app}"
 Source: "..\release\uv.dll"; DestDir: "{app}"
 
 Source: "..\release\assets\*"; DestDir: "{app}\assets"; Flags: recursesubdirs
+
+Source: "resources\mtcad.ico"; DestDir: "{app}\resources"; Flags: ignoreversion
 
 ; ONLY install if user doesn't already have one
 Source: "resources\default_imgui.ini"; \
@@ -24,8 +31,8 @@ Source: "resources\default_imgui.ini"; \
     DestName: "imgui.ini"; \
     Flags: onlyifdoesntexist
 
+
 [Icons]
+Name: "{group}\MTCAD"; Filename: "{app}\mtcad_gui.exe"; IconFilename: "{app}\resources\mtcad.ico"
 
-Name: "{group}\MTCAD"; Filename: "{app}\mtcad_gui.exe"
-
-Name: "{commondesktop}\MTCAD"; Filename: "{app}\mtcad_gui.exe"
+Name: "{commondesktop}\MTCAD"; Filename: "{app}\mtcad_gui.exe"; IconFilename: "{app}\resources\mtcad.ico"

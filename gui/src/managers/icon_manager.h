@@ -1,6 +1,9 @@
 #ifndef MTCAD_GUI_ICON_LOADER_H
 #define MTCAD_GUI_ICON_LOADER_H
 
+#include <cstdint>
+#include <vector>
+
 #include "imgui_impl_vulkan.h"
 
 struct IconTexture {
@@ -14,6 +17,8 @@ struct IconTexture {
 };
 
 void set_icon_loader_black_recolor(const ImVec4* color_rgba);
+
+bool load_icon_rgba_from_file(const char* path, std::vector<uint8_t>* out_pixels, int* out_width, int* out_height);
 
 bool load_icon_texture_from_file(
     const char* path,

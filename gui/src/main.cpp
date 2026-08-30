@@ -237,6 +237,26 @@ static std::string resolve_icon_path(const char* icon_name) {
     return std::string();
 }
 
+static void try_set_sdl_window_icon(SDL_Window* window) {
+    if (window == nullptr) {
+        return;
+    }
+
+    const std::filesystem::path app_icon_path = get_app_data_directory() / "icons" / "mtcad.png";
+    std::vector<uint8_t> pixels;
+    int width = 0;
+    int height = 0;
+    if (!load_icon_rgba_from_file(app_icon_path.string().c_str(), &pixels, &width, &height)) {
+        return;
+    }
+
+    SDL_Surface* icon_surface = SDL_CreateSurfaceFrom(width, height, SDL_PIXELFORMAT_RGBA32, pixels.data(), width * 4);
+    if (icon_surface != nullptr) {
+        SDL_SetWindowIcon(window, icon_surface);
+        SDL_DestroySurface(icon_surface);
+    }
+}
+
 enum class AppIcon {
     Settings = 0,
     File,
@@ -327,9 +347,9 @@ static void setup_vulkan(ImVector<const char*> instance_extensions) {
     VkApplicationInfo app_info = {};
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     app_info.pApplicationName = "MTCAD";
-    app_info.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
-    app_info.pEngineName = "MTCAD";
-    app_info.engineVersion = VK_MAKE_VERSION(0, 1, 0);
+    app_info.applicationVersion = VK_MAKE_VERSION(0, 2, 3);
+    app_info.pEngineName = "MTKernel";
+    app_info.engineVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
     app_info.apiVersion = VK_API_VERSION_1_1;
 
     VkInstanceCreateInfo create_info = {};
@@ -638,6 +658,7 @@ int main() {
     if (applied_settings.window_fullscreen) {
         SDL_SetWindowFullscreen(window, true);
     }
+    try_set_sdl_window_icon(window);
 
     ImVector<const char*> instance_extensions;
     uint32_t sdl_extensions_count = 0;

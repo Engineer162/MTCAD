@@ -30,6 +30,15 @@ public:
     SettingsWindowResult Render(bool* open, UserSettings* pending_settings);
 
 private:
+    enum class Section {
+        General = 0,
+        Workspace,
+        Viewport,
+        Accessibility,
+        Shortcuts,
+    };
+
+    Section selected_section_ = Section::General;
     char workspace_root_buffer_[1024] = {};
     std::string workspace_root_cached_;
 };

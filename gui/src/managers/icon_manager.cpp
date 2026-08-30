@@ -37,6 +37,28 @@ void set_icon_loader_black_recolor(const ImVec4* color_rgba) {
         clamp01(color_rgba->w));
 }
 
+bool load_icon_rgba_from_file(const char* path, std::vector<uint8_t>* out_pixels, int* out_width, int* out_height) {
+    if (path == nullptr || out_pixels == nullptr || out_width == nullptr || out_height == nullptr) {
+        return false;
+    }
+
+    int width = 0;
+    int height = 0;
+    int channels = 0;
+    stbi_uc* pixels = stbi_load(path, &width, &height, &channels, 4);
+    if (pixels == nullptr || width <= 0 || height <= 0) {
+        return false;
+    }
+
+    const size_t image_size = (size_t)width * (size_t)height * 4u;
+    out_pixels->assign(pixels, pixels + image_size);
+    stbi_image_free(pixels);
+
+    *out_width = width;
+    *out_height = height;
+    return true;
+}
+
 static uint32_t find_memory_type(VkPhysicalDevice physical_device, uint32_t type_filter, VkMemoryPropertyFlags properties) {
     VkPhysicalDeviceMemoryProperties mem_properties;
     vkGetPhysicalDeviceMemoryProperties(physical_device, &mem_properties);
