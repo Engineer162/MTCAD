@@ -8,6 +8,8 @@
 class WorkspaceBrowserWindow {
 public:
     void Render(const ImGuiIO& io);
+    void SetOpen(bool open);
+    bool IsOpen() const;
     void SetFolderIconTexture(ImTextureID texture_id);
     void SetRootDirectory(const std::string& root_directory);
 
@@ -22,6 +24,7 @@ private:
     float expanded_width_ = 300.0f;
     float animated_width_ = 300.0f;
     bool width_initialized_ = false;
+    bool open_ = true;
 };
 
 #endif

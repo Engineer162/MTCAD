@@ -32,6 +32,14 @@ void WorkspaceBrowserWindow::SetRootDirectory(const std::string& root_directory)
     current_directory_.clear();
 }
 
+void WorkspaceBrowserWindow::SetOpen(bool open) {
+    open_ = open;
+}
+
+bool WorkspaceBrowserWindow::IsOpen() const {
+    return open_;
+}
+
 void WorkspaceBrowserWindow::RenderFolderRow(const char* label, bool selected) const {
     if (folder_icon_texture_ != (ImTextureID)0) {
         const float icon_size = ImGui::GetTextLineHeight();
@@ -49,6 +57,10 @@ void WorkspaceBrowserWindow::RenderFolderRow(const char* label, bool selected) c
 }
 
 void WorkspaceBrowserWindow::Render(const ImGuiIO& io) {
+    if (!open_) {
+        return;
+    }
+
     if (!width_initialized_) {
         animated_width_ = expanded_width_;
         width_initialized_ = true;
@@ -68,7 +80,8 @@ void WorkspaceBrowserWindow::Render(const ImGuiIO& io) {
     }
 
     ImGui::SetNextWindowSize(ImVec2(expanded_width_, 420.0f), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Workspace", nullptr, ImGuiWindowFlags_NoScrollbar);
+    bool open_state = open_;
+    ImGui::Begin("Workspace", &open_state, ImGuiWindowFlags_NoScrollbar);
 
     const bool is_docked = ImGui::IsWindowDocked();
     ImGuiWindow* current_window = ImGui::GetCurrentWindow();
@@ -185,4 +198,5 @@ void WorkspaceBrowserWindow::Render(const ImGuiIO& io) {
     ImGui::EndChild();
 
     ImGui::End();
+    open_ = open_state;
 }

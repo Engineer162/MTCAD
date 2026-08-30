@@ -24,6 +24,7 @@
 #include "windows/toolbar_window.h"
 #include "windows/viewport_window.h"
 #include "windows/workspace_browser_window.h"
+#include "windows/about_window.h"
 
 // Tools
 #include "tools/tools_init.h"
@@ -238,6 +239,12 @@ static std::string resolve_icon_path(const char* icon_name) {
 
 enum class AppIcon {
     Settings = 0,
+    File,
+    Panel,
+    Save,
+    Undo,
+    Redo,
+    Help,
     Camera,
     Grid,
     Folder,
@@ -705,6 +712,12 @@ int main() {
 
     std::array<IconSlot, k_app_icon_count> icons = {{
         {"settings"},
+        {"file"},
+        {"panel"},
+        {"save"},
+        {"undo"},
+        {"redo"},
+        {"help"},
         {"camera"},
         {"grid"},
         {"folder"},
@@ -757,6 +770,7 @@ int main() {
     ToolbarWindow toolbar_window;
     ViewportWindow viewport_window;
     SettingsWindow settings_window;
+    AboutWindow about_window;
     mtcad::SketchPaletteWindow tool_window;
     mtcad::ExtrudePaletteWindow extrude_window;
 
@@ -873,6 +887,9 @@ int main() {
     window_renderers.emplace_back([&viewport_window](const ImGuiIO& frame_io) {
         viewport_window.Render(frame_io);
     });
+    window_renderers.emplace_back([&about_window, window](const ImGuiIO&) {
+        about_window.Render(window);
+    });
 
     bool show_settings_window = false;
 
@@ -911,37 +928,395 @@ int main() {
         io.FontGlobalScale = ui_text_scale;
 
         const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+        const ImVec2 navbar_button_padding(4.0f, 3.0f);
+        const float requested_icon_size = 16.0f * ui_icon_scale;
+
+        const float default_menu_button_height = ImGui::GetFrameHeight();
+        float scaled_menu_button_height = requested_icon_size + navbar_button_padding.y * 2.0f;
+        if (scaled_menu_button_height < default_menu_button_height) {
+            scaled_menu_button_height = default_menu_button_height;
+        }
+        if (scaled_menu_button_height < 18.0f) {
+            scaled_menu_button_height = 18.0f;
+        }
+
         ImGui::SetNextWindowPos(main_viewport->WorkPos);
         ImGui::SetNextWindowSize(main_viewport->WorkSize);
         ImGui::SetNextWindowViewport(main_viewport->ID);
 
-        const ImVec2 settings_button_padding(4.0f, 3.0f);
-        const float requested_icon_size = 16.0f * ui_icon_scale;
-        const float min_button_height_for_icon = requested_icon_size + settings_button_padding.y * 2.0f;
-        const float base_menu_frame_padding_y = 6.0f * ui_text_scale;
-        float workspace_menu_frame_padding_y = base_menu_frame_padding_y;
-        const float required_menu_frame_padding_y = (min_button_height_for_icon - ImGui::GetFontSize()) * 0.5f;
-        if (workspace_menu_frame_padding_y < required_menu_frame_padding_y) {
-            workspace_menu_frame_padding_y = required_menu_frame_padding_y;
-        }
-        if (workspace_menu_frame_padding_y < 4.0f) {
-            workspace_menu_frame_padding_y = 4.0f;
-        }
-        const ImVec2 workspace_menu_frame_padding(8.0f * ui_text_scale, workspace_menu_frame_padding_y);
-
+        const ImGuiStyle& style = ImGui::GetStyle();
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(style.WindowPadding.x, style.WindowPadding.y));
         ImGuiWindowFlags host_flags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse;
         host_flags |= ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
-        host_flags |= ImGuiWindowFlags_MenuBar;
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, workspace_menu_frame_padding);
         ImGui::Begin("MTCAD Workspace", nullptr, host_flags);
         ImGuiID dockspace_id = ImGui::GetID("MTCAD_Dockspace");
         ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
-        if (ImGui::BeginMenuBar()) {
-            float settings_button_height = ImGui::GetFrameHeight();
-            if (settings_button_height < 18.0f) {
-                settings_button_height = 18.0f;
+        ImGui::End();
+        ImGui::PopStyleVar();
+
+        float menu_bar_frame_padding_y = (scaled_menu_button_height - ImGui::GetFontSize()) * 0.5f;
+        if (menu_bar_frame_padding_y < style.FramePadding.y) {
+            menu_bar_frame_padding_y = style.FramePadding.y;
+        }
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(style.FramePadding.x, menu_bar_frame_padding_y));
+
+        if (ImGui::BeginMainMenuBar())
+        {
+            // Global Navbar button variables
+            const ImVec2 button_padding = navbar_button_padding;
+            const ImVec2 dropdown_button_padding(button_padding.x + 3.0f, button_padding.y);
+            float button_height = ImGui::GetFrameHeight();
+            const float min_scaled_button_height = requested_icon_size + button_padding.y * 2.0f;
+            if (button_height < min_scaled_button_height) {
+                button_height = min_scaled_button_height;
             }
-            const float max_icon_size = settings_button_height - settings_button_padding.y * 2.0f;
+            if (button_height < 18.0f) {
+                button_height = 18.0f;
+            }
+
+            const float max_icon_size = button_height - button_padding.y * 2.0f;
+            float save_icon_size = requested_icon_size;
+            if (save_icon_size > max_icon_size) {
+                save_icon_size = max_icon_size;
+            }
+            if (save_icon_size < 12.0f) {
+                save_icon_size = 12.0f;
+            }
+
+            const float dropdown_arrow_scale = 0.15f;
+            const float dropdown_arrow_min_size = 3.0f;
+
+            auto compute_dropdown_arrow_slot_width = [&](float icon_size) {
+                const float min_arrow_slot = 5.0f;
+                const float icon_based_arrow_slot = icon_size * 0.375f;
+                return (icon_based_arrow_slot > min_arrow_slot) ? icon_based_arrow_slot : min_arrow_slot;
+            };
+
+            auto compute_dropdown_icon_button_width = [&](float icon_size) {
+                return icon_size + dropdown_button_padding.x * 2.0f + compute_dropdown_arrow_slot_width(icon_size);
+            };
+
+            auto draw_dropdown_arrow = [&]() {
+                const ImVec2 item_min = ImGui::GetItemRectMin();
+                const ImVec2 item_max = ImGui::GetItemRectMax();
+                const float item_height = item_max.y - item_min.y;
+                float arrow_size = item_height * dropdown_arrow_scale;
+                if (arrow_size < dropdown_arrow_min_size) {
+                    arrow_size = dropdown_arrow_min_size;
+                }
+                const float right_gutter = ImGui::GetStyle().FramePadding.x * 0.55f;
+                const float arrow_cx = item_max.x - right_gutter - arrow_size;
+                const float arrow_cy = item_min.y + item_height * 0.5f + 0.5f;
+                ImGui::GetWindowDrawList()->AddTriangleFilled(
+                    ImVec2(arrow_cx - arrow_size, arrow_cy - arrow_size * 0.6f),
+                    ImVec2(arrow_cx + arrow_size, arrow_cy - arrow_size * 0.6f),
+                    ImVec2(arrow_cx, arrow_cy + arrow_size * 0.7f),
+                    ImGui::GetColorU32(ImGuiCol_Text));
+            };
+
+            auto render_dropdown_icon_button = [&](const char* id, ImTextureID texture, float icon_size, const char* tooltip) {
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, dropdown_button_padding);
+                const float arrow_slot_width = compute_dropdown_arrow_slot_width(icon_size);
+                const float dropdown_button_width = compute_dropdown_icon_button_width(icon_size);
+                const bool clicked = ImGui::Button(id, ImVec2(dropdown_button_width, button_height));
+
+                const ImVec2 item_min = ImGui::GetItemRectMin();
+                const ImVec2 item_max = ImGui::GetItemRectMax();
+                const float item_height = item_max.y - item_min.y;
+                float arrow_size = item_height * dropdown_arrow_scale;
+                if (arrow_size < dropdown_arrow_min_size) {
+                    arrow_size = dropdown_arrow_min_size;
+                }
+
+                const float right_gutter = ImGui::GetStyle().FramePadding.x * 0.55f;
+                const float arrow_center_x = item_max.x - right_gutter - arrow_size;
+                const float arrow_left_x = arrow_center_x - arrow_size;
+                const float icon_area_min_x = item_min.x + dropdown_button_padding.x;
+                const float icon_area_max_x = item_max.x - dropdown_button_padding.x - arrow_slot_width;
+                float draw_icon_size = icon_size;
+                const float icon_area_width = icon_area_max_x - icon_area_min_x;
+                if (icon_area_width < draw_icon_size) {
+                    draw_icon_size = icon_area_width;
+                }
+                const float max_icon_height = item_height - dropdown_button_padding.y * 2.0f;
+                if (draw_icon_size > max_icon_height) {
+                    draw_icon_size = max_icon_height;
+                }
+                if (draw_icon_size < 10.0f) {
+                    draw_icon_size = 10.0f;
+                }
+                float icon_x = icon_area_min_x;
+                if (icon_area_max_x > icon_area_min_x) {
+                    if (icon_area_width > draw_icon_size) {
+                        icon_x = icon_area_min_x + (icon_area_width - draw_icon_size) * 0.5f;
+                    }
+                }
+                const float icon_y = item_min.y + (item_height - draw_icon_size) * 0.5f;
+
+                ImGui::GetWindowDrawList()->AddImage(
+                    texture,
+                    ImVec2(icon_x, icon_y),
+                    ImVec2(icon_x + draw_icon_size, icon_y + draw_icon_size));
+
+                draw_dropdown_arrow();
+                ImGui::PopStyleVar();
+
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("%s", tooltip);
+                }
+                return clicked;
+            };
+
+            auto render_icon_button = [&](const char* id, ImTextureID texture, float icon_size, const ImVec2& frame_padding, const char* tooltip) {
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, frame_padding);
+                const float button_width = icon_size + frame_padding.x * 2.0f;
+                const bool clicked = ImGui::Button(id, ImVec2(button_width, button_height));
+
+                const ImVec2 item_min = ImGui::GetItemRectMin();
+                const ImVec2 item_max = ImGui::GetItemRectMax();
+                const float item_height = item_max.y - item_min.y;
+                float draw_icon_size = icon_size;
+                const float max_icon_height = item_height - frame_padding.y * 2.0f;
+                if (draw_icon_size > max_icon_height) {
+                    draw_icon_size = max_icon_height;
+                }
+                if (draw_icon_size < 10.0f) {
+                    draw_icon_size = 10.0f;
+                }
+
+                const float icon_x = item_min.x + (button_width - draw_icon_size) * 0.5f;
+                const float icon_y = item_min.y + (item_height - draw_icon_size) * 0.5f;
+                ImGui::GetWindowDrawList()->AddImage(
+                    texture,
+                    ImVec2(icon_x, icon_y),
+                    ImVec2(icon_x + draw_icon_size, icon_y + draw_icon_size));
+
+                ImGui::PopStyleVar();
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("%s", tooltip);
+                }
+                return clicked;
+            };
+
+            // File button
+            float file_icon_size = requested_icon_size;
+            if (file_icon_size > max_icon_size) {
+                file_icon_size = max_icon_size;
+            }
+            if (file_icon_size < 12.0f) {
+                file_icon_size = 12.0f;
+            }
+
+            const char* file_fallback_label = "File";
+            const IconSlot& file_icon = icon_slot(AppIcon::File);
+            const bool has_file_icon = file_icon.loaded && file_icon.texture.descriptor_set != VK_NULL_HANDLE;
+            bool open_file_popup = false;
+
+            if (has_file_icon) {
+                if (render_dropdown_icon_button("##file_icon", (ImTextureID)file_icon.texture.descriptor_set, file_icon_size, "File")) {
+                    open_file_popup = true;
+                }
+            } else {
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, dropdown_button_padding);
+                if (ImGui::Button(file_fallback_label, ImVec2(0.0f, button_height))) {
+                    open_file_popup = true;
+                }
+                draw_dropdown_arrow();
+                ImGui::PopStyleVar();
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("File");
+                }
+            }
+
+            if (open_file_popup) {
+                ImGui::OpenPopup("FilePopup");
+            }
+            if (ImGui::BeginPopup("FilePopup")) {
+                if (ImGui::MenuItem("New", "Ctrl+N")) {
+                    //create_new_show();
+                }
+                if (ImGui::MenuItem("Open...", "Ctrl+O")) {
+                    //request_open_show_dialog();
+                }
+                if (ImGui::MenuItem("Save", "Ctrl+S")) {
+                    //save_current_show(false);
+                }
+                if (ImGui::MenuItem("Save As...")) {
+                    //request_save_show_as_dialog(false);
+                }
+                ImGui::EndPopup();
+            }
+
+            // Panel button
+            float panel_icon_size = requested_icon_size;
+            if (panel_icon_size > max_icon_size) {
+                panel_icon_size = max_icon_size;
+            }
+            if (panel_icon_size < 12.0f) {
+                panel_icon_size = 12.0f;
+            }
+
+            const char* panel_fallback_label = "Panel";
+            const IconSlot& panel_icon = icon_slot(AppIcon::Panel);
+            const bool has_panel_icon = panel_icon.loaded && panel_icon.texture.descriptor_set != VK_NULL_HANDLE;
+            bool open_panel_popup = false;
+
+            if (has_panel_icon) {
+                if (render_dropdown_icon_button("##panel_icon", (ImTextureID)panel_icon.texture.descriptor_set, panel_icon_size, "Panel")) {
+                    open_panel_popup = true;
+                }
+            } else {
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, dropdown_button_padding);
+                if (ImGui::Button(panel_fallback_label, ImVec2(0.0f, button_height))) {
+                    open_panel_popup = true;
+                }
+                draw_dropdown_arrow();
+                ImGui::PopStyleVar();
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("Panel");
+                }
+            }
+
+            if (open_panel_popup) {
+                ImGui::OpenPopup("PanelPopup");
+            }
+            if (ImGui::BeginPopup("PanelPopup")) {
+                ImGui::Separator();
+                ImGui::TextUnformatted("General:");
+                ImGui::Separator();
+                if (ImGui::MenuItem("Workspace Browser", nullptr, workspace_browser_window.IsOpen())) {
+                    workspace_browser_window.SetOpen(!workspace_browser_window.IsOpen());
+                }
+                ImGui::Separator();
+                ImGui::TextUnformatted("Modeling windows:");
+                ImGui::Separator();
+                if (ImGui::BeginMenu("Modeling Panels")) {
+                    if (ImGui::MenuItem("Viewport", nullptr, viewport_window.IsOpen())) {
+                        viewport_window.SetOpen(!viewport_window.IsOpen());
+                    }
+                    if (ImGui::MenuItem("Toolbar", nullptr, toolbar_window.IsOpen())) {
+                        toolbar_window.SetOpen(!toolbar_window.IsOpen());
+                    }
+                    ImGui::EndMenu();
+                }
+                ImGui::Separator();
+                ImGui::TextUnformatted("Helper windows/tools:");
+                ImGui::Separator();
+                if (ImGui::MenuItem("Close All Panels")) {
+                    workspace_browser_window.SetOpen(false);
+                    viewport_window.SetOpen(false);
+                    toolbar_window.SetOpen(false);
+                }
+                ImGui::EndPopup();
+            }
+
+            // Save button
+            const char* save_fallback_label = "Save";
+            const IconSlot& save_icon = icon_slot(AppIcon::Save);
+            const bool has_save_icon = save_icon.loaded && save_icon.texture.descriptor_set != VK_NULL_HANDLE;
+
+            if (has_save_icon) {
+                if (render_icon_button("##save_icon", (ImTextureID)save_icon.texture.descriptor_set, save_icon_size, button_padding, "Save")) {
+                    // Do save stuff here
+                }
+            } else {
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, button_padding);
+                if (ImGui::Button(save_fallback_label, ImVec2(0.0f, button_height))) {
+                    // Do save stuff here
+                }
+                ImGui::PopStyleVar();
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("Save");
+                }
+            }
+
+            // Undo button
+            float undo_icon_size = requested_icon_size;
+            if (undo_icon_size > max_icon_size) {
+                undo_icon_size = max_icon_size;
+            }
+            if (undo_icon_size < 12.0f) {
+                undo_icon_size = 12.0f;
+            }
+
+            const char* undo_fallback_label = "Undo";
+            const IconSlot& Undo_icon = icon_slot(AppIcon::Undo);
+            const bool has_Undo_icon = Undo_icon.loaded && Undo_icon.texture.descriptor_set != VK_NULL_HANDLE;
+            bool open_undo_popup = false;
+
+            if (has_Undo_icon) {
+                if (render_dropdown_icon_button("##undo_icon", (ImTextureID)Undo_icon.texture.descriptor_set, undo_icon_size, "Undo")) {
+                    open_undo_popup = true;
+                }
+            } else {
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, dropdown_button_padding);
+                if (ImGui::Button(undo_fallback_label, ImVec2(0.0f, button_height))) {
+                    open_undo_popup = true;
+                }
+                draw_dropdown_arrow();
+                ImGui::PopStyleVar();
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("Undo");
+                }
+            }
+
+            if (open_undo_popup) {
+                ImGui::OpenPopup("UndoPopup");
+            }
+            if (ImGui::BeginPopup("UndoPopup")) {
+                if (ImGui::MenuItem("Undo", "Ctrl+Z")) {
+                    // TODO: route to undo command stack.
+                }
+                ImGui::Separator();
+                ImGui::MenuItem("No actions in history", nullptr, false, false);
+                ImGui::EndPopup();
+            }
+
+            // Redo button
+            float redo_icon_size = requested_icon_size;
+            if (redo_icon_size > max_icon_size) {
+                redo_icon_size = max_icon_size;
+            }
+            if (redo_icon_size < 12.0f) {
+                redo_icon_size = 12.0f;
+            }
+
+            const char* redo_fallback_label = "Redo";
+            const IconSlot& redo_icon = icon_slot(AppIcon::Redo);
+            const bool has_redo_icon = redo_icon.loaded && redo_icon.texture.descriptor_set != VK_NULL_HANDLE;
+            bool open_redo_popup = false;
+
+            if (has_redo_icon) {
+                if (render_dropdown_icon_button("##redo_icon", (ImTextureID)redo_icon.texture.descriptor_set, redo_icon_size, "Redo")) {
+                    open_redo_popup = true;
+                }
+            } else {
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, dropdown_button_padding);
+                if (ImGui::Button(redo_fallback_label, ImVec2(0.0f, button_height))) {
+                    open_redo_popup = true;
+                }
+                draw_dropdown_arrow();
+                ImGui::PopStyleVar();
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("Redo");
+                }
+            }
+
+            if (open_redo_popup) {
+                ImGui::OpenPopup("RedoPopup");
+            }
+            if (ImGui::BeginPopup("RedoPopup")) {
+                if (ImGui::MenuItem("Redo", "Ctrl+Y")) {
+                    // TODO: route to redo command stack.
+                }
+                ImGui::Separator();
+                ImGui::MenuItem("No actions in history", nullptr, false, false);
+                ImGui::EndPopup();
+            }
+
+            // Right window padding
+
+            // Settings button padding and sizing
             float settings_icon_size = requested_icon_size;
             if (settings_icon_size > max_icon_size) {
                 settings_icon_size = max_icon_size;
@@ -950,50 +1325,83 @@ int main() {
                 settings_icon_size = 12.0f;
             }
 
-            ImGui::Text("Kernel %d.%d.%d", version.major, version.minor, version.patch);
-
-            const char* fallback_label = "Cfg";
-            const float fallback_width = ImGui::CalcTextSize(fallback_label).x + settings_button_padding.x * 2.0f;
-            const float icon_button_width = settings_icon_size + settings_button_padding.x * 2.0f;
+            const char* settings_fallback_label = "Cfg";
+            const float fallback_width = ImGui::CalcTextSize(settings_fallback_label).x + button_padding.x * 2.0f;
+            const float settings_icon_button_width = settings_icon_size + button_padding.x * 2.0f;
             const IconSlot& settings_icon = icon_slot(AppIcon::Settings);
             const bool has_settings_icon = settings_icon.loaded && settings_icon.texture.descriptor_set != VK_NULL_HANDLE;
-            const float button_width = has_settings_icon ? icon_button_width : fallback_width;
-            const float right_padding = ImGui::GetStyle().FramePadding.x;
-            const float settings_x = ImGui::GetWindowContentRegionMax().x - button_width - right_padding;
-            if (ImGui::GetCursorPosX() < settings_x) {
-                ImGui::SetCursorPosX(settings_x);
+            const float settings_button_width = has_settings_icon ? settings_icon_button_width : fallback_width;
+            const float settings_right_padding = ImGui::GetStyle().FramePadding.x;
+            const float settings_x = ImGui::GetWindowContentRegionMax().x - settings_button_width - settings_right_padding;
+
+            // Help button padding and sizing
+            const ImVec2 help_button_padding = dropdown_button_padding;
+            float help_button_height = button_height;
+            const float help_max_icon_size = help_button_height - help_button_padding.y * 2.0f;
+            float help_icon_size = requested_icon_size;
+            if (help_icon_size > help_max_icon_size) {
+                help_icon_size = help_max_icon_size;
+            }
+            if (help_icon_size < 12.0f) {
+                help_icon_size = 12.0f;
             }
 
-            if (has_settings_icon) {
-                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, settings_button_padding);
-                ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(49, 67, 90, 230));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(67, 92, 124, 255));
-                ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(80, 108, 145, 255));
-                if (ImGui::ImageButton("##settings_icon", (ImTextureID)settings_icon.texture.descriptor_set, ImVec2(settings_icon_size, settings_icon_size))) {
-                    show_settings_window = true;
-                }
-                ImGui::PopStyleColor(3);
-                ImGui::PopStyleVar();
-                if (ImGui::IsItemHovered()) {
-                    ImGui::SetTooltip("Settings");
+            const char* help_fallback_label = "Help";
+            const IconSlot& help_icon = icon_slot(AppIcon::Help);
+            const bool has_help_icon = help_icon.loaded && help_icon.texture.descriptor_set != VK_NULL_HANDLE;
+            const float help_button_width = has_help_icon
+                ? compute_dropdown_icon_button_width(help_icon_size)
+                : ImGui::CalcTextSize(help_fallback_label).x + help_button_padding.x * 2.0f;
+            const float help_right_padding = ImGui::GetStyle().FramePadding.x;
+            const float help_x = settings_x - help_button_width - help_right_padding;
+            bool open_help_popup = false;
+            ImGui::SetCursorPosX(help_x);
+
+            // Help button
+            if (has_help_icon) {
+                if (render_dropdown_icon_button("##help_icon", (ImTextureID)help_icon.texture.descriptor_set, help_icon_size, "Help")) {
+                    open_help_popup = true;
                 }
             } else {
-                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, settings_button_padding);
-                ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(49, 67, 90, 230));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(67, 92, 124, 255));
-                ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(80, 108, 145, 255));
-                if (ImGui::Button(fallback_label, ImVec2(0.0f, settings_button_height))) {
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, help_button_padding);
+                if (ImGui::Button(help_fallback_label, ImVec2(0.0f, help_button_height))) {
+                    open_help_popup = true;
+                }
+                draw_dropdown_arrow();
+                ImGui::PopStyleVar();
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("Help");
+                }
+            }
+
+            if (open_help_popup) {
+                ImGui::OpenPopup("HelpButtonPopup");
+            }
+            if (ImGui::BeginPopup("HelpButtonPopup")) {
+                if (ImGui::MenuItem("About")) {
+                    about_window.SetOpen(true);
+                }
+                ImGui::EndPopup();
+            }
+
+            // Settings button
+            ImGui::SetCursorPosX(settings_x);
+            if (has_settings_icon) {
+                if (render_icon_button("##settings_icon", (ImTextureID)settings_icon.texture.descriptor_set, settings_icon_size, button_padding, "Settings")) {
                     show_settings_window = true;
                 }
-                ImGui::PopStyleColor(3);
+            } else {
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, button_padding);
+                if (ImGui::Button(settings_fallback_label, ImVec2(0.0f, button_height))) {
+                    show_settings_window = true;
+                }
                 ImGui::PopStyleVar();
                 if (ImGui::IsItemHovered()) {
                     ImGui::SetTooltip("Settings");
                 }
             }
-            ImGui::EndMenuBar();
+            ImGui::EndMainMenuBar();
         }
-        ImGui::End();
         ImGui::PopStyleVar();
 
         if (show_settings_window && !was_settings_window_open) {

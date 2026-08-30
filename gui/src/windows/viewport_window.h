@@ -35,6 +35,8 @@ public:
     };
 
     void Render(const ImGuiIO& io);
+    void SetOpen(bool open);
+    bool IsOpen() const;
     void SetPanButton(ImGuiMouseButton button);
     ImGuiMouseButton GetPanButton() const;
     void SetOrbitButton(ImGuiMouseButton button);
@@ -175,6 +177,7 @@ private:
     std::vector<Vec3> extruded_body_final_polygon_;
     std::vector<std::vector<Vec3>> extruded_body_final_polygons_;
     float extruded_body_final_depth_world_ = 0.0f;
+    bool open_ = true;
 };
 
 #endif

@@ -37,6 +37,8 @@ public:
     bool ConsumeBeginSolidModeRequest();
     bool ConsumeSelectedTool(const char** out_tool_name);
     void Render(const ImGuiIO& io);
+    void SetOpen(bool open);
+    bool IsOpen() const;
 
 private:
     bool sketch_mode_ = false;
@@ -75,6 +77,7 @@ private:
     bool snap_to_grid_ = true;
     bool ortho_mode_ = false;
     float grid_step_ = 1.0f;
+    bool open_ = true;
 };
 
 #endif

@@ -1096,6 +1096,14 @@ static float NiceGridStep(float desired_step) {
 
 } // namespace
 
+void ViewportWindow::SetOpen(bool open) {
+    open_ = open;
+}
+
+bool ViewportWindow::IsOpen() const {
+    return open_;
+}
+
 void ViewportWindow::DrawAdaptiveSketchGrid(ImDrawList* draw_list, const ImVec2& canvas_pos, const ImVec2& canvas_size) const {
     if (draw_list == nullptr) {
         return;
@@ -1460,11 +1468,16 @@ void ViewportWindow::AlignCameraToSketchPlane(SketchPlane plane) {
 }
 
 void ViewportWindow::Render(const ImGuiIO& io) {
+    if (!open_) {
+        return;
+    }
+
     const double info_hold_seconds = 3.0;
     const double info_fade_seconds = 0.75;
 
     ImGuiWindowFlags viewport_flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
-    ImGui::Begin("Viewport", nullptr, viewport_flags);
+    bool open_state = open_;
+    ImGui::Begin("Viewport", &open_state, viewport_flags);
 
     // Keep the canvas separated from both the host top bar and the viewport header/tab area.
     const float ui_scale = (io.FontGlobalScale > 0.0f) ? io.FontGlobalScale : 1.0f;
@@ -2815,6 +2828,7 @@ void ViewportWindow::Render(const ImGuiIO& io) {
     draw_list->AddRect(canvas_pos, canvas_end, IM_COL32(80, 90, 110, 255));
 
     ImGui::End();
+    open_ = open_state;
 
     const ImGuiStyle& style = ImGui::GetStyle();
     const float btn_view_w = (camera_icon_texture_ != (ImTextureID)0)

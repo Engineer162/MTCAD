@@ -39,6 +39,7 @@ add_executable(mtcad_gui
     src/windows/toolbar_window.cpp
     src/windows/viewport_window.cpp
     src/windows/workspace_browser_window.cpp
+    src/windows/about_window.cpp
 )
 
 target_compile_definitions(mtcad_gui

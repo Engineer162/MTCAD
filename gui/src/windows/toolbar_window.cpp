@@ -30,6 +30,14 @@ void ToolbarWindow::SetIconTexture(IconId icon_id, ImTextureID texture_id) {
     }
 }
 
+void ToolbarWindow::SetOpen(bool open) {
+    open_ = open;
+}
+
+bool ToolbarWindow::IsOpen() const {
+    return open_;
+}
+
 void ToolbarWindow::SetIconScale(float icon_scale) {
     icon_scale_ = icon_scale;
     if (icon_scale_ < 0.80f) {
@@ -73,6 +81,10 @@ bool ToolbarWindow::ConsumeSelectedTool(const char** out_tool_name) {
 }
 
 void ToolbarWindow::Render(const ImGuiIO& io) {
+    if (!open_) {
+        return;
+    }
+
     struct ToolEntry {
         const char* label;
     };
@@ -420,7 +432,9 @@ void ToolbarWindow::Render(const ImGuiIO& io) {
     };
 
     ImGui::SetNextWindowSize(ImVec2(280.0f, 0.0f), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Toolbar");
+    bool open_state = open_;
+    ImGui::Begin("Toolbar", &open_state);
+    open_ = open_state;
 
     float titlebar_clearance = 4.0f + (io.FontGlobalScale - 1.0f) * ImGui::GetFontSize() * 0.5f;
     if (titlebar_clearance < 4.0f) {
@@ -702,4 +716,5 @@ void ToolbarWindow::Render(const ImGuiIO& io) {
     //ImGui::Text("Active Tool: %s", active_tool_name_ ? active_tool_name_ : "None");
 
     ImGui::End();
+    open_ = open_state;
 }
