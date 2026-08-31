@@ -1,5 +1,7 @@
 #include "toolbar_window.h"
 
+#include "../managers/icon_manager.h"
+
 #include <algorithm>
 #include <cstring>
 
@@ -557,7 +559,10 @@ void ToolbarWindow::Render(const ImGuiIO& io) {
                 ImGui::GetWindowDrawList()->AddImage(
                     tool_icon,
                     icon_pos,
-                    ImVec2(icon_pos.x + icon_size, icon_pos.y + icon_size));
+                    ImVec2(icon_pos.x + icon_size, icon_pos.y + icon_size),
+                    ImVec2(0.0f, 0.0f),
+                    ImVec2(1.0f, 1.0f),
+                    ImGui::GetColorU32(get_icon_tint()));
                 ImGui::PopID();
                 if (ImGui::IsItemHovered()) {
                     ImGui::SetTooltip("%s", tool.label);

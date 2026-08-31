@@ -795,25 +795,6 @@ int main() {
     mtcad::SketchPaletteWindow tool_window;
     mtcad::ExtrudePaletteWindow extrude_window;
 
-    auto reload_single_icon = [&](IconSlot* slot) {
-        if (slot == nullptr) {
-            return;
-        }
-        if (slot->path.empty()) {
-            destroy_icon_texture(g_device, g_allocator, &slot->texture);
-            slot->loaded = false;
-            return;
-        }
-        slot->loaded = load_icon_texture_from_file(
-            slot->path.c_str(),
-            g_physical_device,
-            g_device,
-            g_queue_family,
-            g_queue,
-            g_allocator,
-            &slot->texture);
-    };
-
     auto apply_loaded_icon_textures = [&]() {
         struct ToolbarIconBinding {
             AppIcon icon;
@@ -857,27 +838,6 @@ int main() {
         for (const ToolbarIconBinding& binding : toolbar_icon_bindings) {
             toolbar_window.SetIconTexture(binding.toolbar_icon, icon_texture_id(binding.icon));
         }
-    };
-
-    auto reload_icons_for_theme = [&](int theme_index) {
-        VkResult idle_err = vkDeviceWaitIdle(g_device);
-        if (idle_err != VK_SUCCESS && idle_err != VK_ERROR_DEVICE_LOST) {
-            check_vk_result(idle_err);
-            return;
-        }
-
-        ImVec4 icon_tint;
-        if (get_theme_icon_tint(theme_index, &icon_tint)) {
-            set_icon_loader_black_recolor(&icon_tint);
-        } else {
-            set_icon_loader_black_recolor(nullptr);
-        }
-
-        for (IconSlot& slot : icons) {
-            reload_single_icon(&slot);
-        }
-
-        apply_loaded_icon_textures();
     };
 
     float ui_text_scale = applied_settings.text_scale;
@@ -1077,7 +1037,10 @@ int main() {
                 ImGui::GetWindowDrawList()->AddImage(
                     texture,
                     ImVec2(icon_x, icon_y),
-                    ImVec2(icon_x + draw_icon_size, icon_y + draw_icon_size));
+                    ImVec2(icon_x + draw_icon_size, icon_y + draw_icon_size),
+                    ImVec2(0.0f, 0.0f),
+                    ImVec2(1.0f, 1.0f),
+                    ImGui::GetColorU32(get_icon_tint()));
 
                 draw_dropdown_arrow();
                 ImGui::PopStyleVar();
@@ -1110,7 +1073,10 @@ int main() {
                 ImGui::GetWindowDrawList()->AddImage(
                     texture,
                     ImVec2(icon_x, icon_y),
-                    ImVec2(icon_x + draw_icon_size, icon_y + draw_icon_size));
+                    ImVec2(icon_x + draw_icon_size, icon_y + draw_icon_size),
+                    ImVec2(0.0f, 0.0f),
+                    ImVec2(1.0f, 1.0f),
+                    ImGui::GetColorU32(get_icon_tint()));
 
                 ImGui::PopStyleVar();
                 if (ImGui::IsItemHovered()) {
@@ -1481,7 +1447,12 @@ int main() {
 
         const int desired_icon_theme_index = clamp_theme_index(show_settings_window ? pending_settings.theme_index : applied_settings.theme_index);
         if (desired_icon_theme_index != current_icon_theme_index) {
-            reload_icons_for_theme(desired_icon_theme_index);
+            ImVec4 icon_tint;
+            if (get_theme_icon_tint(desired_icon_theme_index, &icon_tint)) {
+                set_icon_loader_black_recolor(&icon_tint);
+            } else {
+                set_icon_loader_black_recolor(nullptr);
+            }
             current_icon_theme_index = desired_icon_theme_index;
         }
 

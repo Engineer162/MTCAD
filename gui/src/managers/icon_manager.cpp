@@ -9,8 +9,7 @@
 
 namespace {
 
-bool g_recolor_black_pixels = false;
-ImVec4 g_black_recolor = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+ImVec4 g_icon_tint = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 
 float clamp01(float v) {
     return (std::max)(0.0f, (std::min)(1.0f, v));
@@ -24,17 +23,19 @@ uint8_t to_u8(float v) {
 
 void set_icon_loader_black_recolor(const ImVec4* color_rgba) {
     if (color_rgba == nullptr) {
-        g_recolor_black_pixels = false;
-        g_black_recolor = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+        g_icon_tint = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
         return;
     }
 
-    g_recolor_black_pixels = true;
-    g_black_recolor = ImVec4(
+    g_icon_tint = ImVec4(
         clamp01(color_rgba->x),
         clamp01(color_rgba->y),
         clamp01(color_rgba->z),
         clamp01(color_rgba->w));
+}
+
+ImVec4 get_icon_tint() {
+    return g_icon_tint;
 }
 
 bool load_icon_rgba_from_file(const char* path, std::vector<uint8_t>* out_pixels, int* out_width, int* out_height) {
@@ -208,26 +209,13 @@ bool load_icon_texture_from_file(
         return false;
     }
 
-    if (g_recolor_black_pixels) {
-        const uint8_t tint_r = to_u8(g_black_recolor.x);
-        const uint8_t tint_g = to_u8(g_black_recolor.y);
-        const uint8_t tint_b = to_u8(g_black_recolor.z);
-        const float tint_a = clamp01(g_black_recolor.w);
-        const int pixel_count = width * height;
-
-        for (int i = 0; i < pixel_count; ++i) {
-            stbi_uc* px = pixels + (i * 4);
-            if (px[3] == 0) {
-                continue;
-            }
-
-            // Recolor fully black/near-black pixels while preserving per-pixel alpha edges.
-            if (px[0] <= 16 && px[1] <= 16 && px[2] <= 16) {
-                px[0] = tint_r;
-                px[1] = tint_g;
-                px[2] = tint_b;
-                px[3] = (stbi_uc)((float)px[3] * tint_a + 0.5f);
-            }
+    const int pixel_count = width * height;
+    for (int i = 0; i < pixel_count; ++i) {
+        stbi_uc* px = pixels + (i * 4);
+        if (px[3] != 0 && px[0] <= 16 && px[1] <= 16 && px[2] <= 16) {
+            px[0] = 255;
+            px[1] = 255;
+            px[2] = 255;
         }
     }
 

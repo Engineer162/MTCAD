@@ -1,5 +1,7 @@
 #include "workspace_browser_window.h"
 
+#include "../managers/icon_manager.h"
+
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
@@ -43,7 +45,7 @@ bool WorkspaceBrowserWindow::IsOpen() const {
 void WorkspaceBrowserWindow::RenderFolderRow(const char* label, bool selected) const {
     if (folder_icon_texture_ != (ImTextureID)0) {
         const float icon_size = ImGui::GetTextLineHeight();
-        ImGui::Image(folder_icon_texture_, ImVec2(icon_size, icon_size));
+        ImGui::Image(folder_icon_texture_, ImVec2(icon_size, icon_size), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), get_icon_tint(), ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
         ImGui::SameLine();
     }
 

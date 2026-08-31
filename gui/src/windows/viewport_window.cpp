@@ -1,5 +1,7 @@
 #include "viewport_window.h"
 
+#include "../managers/icon_manager.h"
+
 #include <cmath>
 #include <cstdio>
 #include <array>
@@ -2909,7 +2911,7 @@ void ViewportWindow::Render(const ImGuiIO& io) {
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(67, 92, 124, 255));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(80, 108, 145, 255));
         const float icon_size = ImGui::GetFrameHeight() - style.FramePadding.y * 2.0f;
-        if (ImGui::ImageButton("##view_render_type_cfg", camera_icon_texture_, ImVec2(icon_size, icon_size))) {
+        if (ImGui::ImageButton("##view_render_type_cfg", camera_icon_texture_, ImVec2(icon_size, icon_size), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImVec4(0.0f, 0.0f, 0.0f, 0.0f), get_icon_tint())) {
             ImGui::OpenPopup("view_render_type_popup");
         }
         ImGui::PopStyleColor(3);
@@ -2958,7 +2960,7 @@ void ViewportWindow::Render(const ImGuiIO& io) {
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(67, 92, 124, 255));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(80, 108, 145, 255));
         const float icon_size = ImGui::GetFrameHeight() - style.FramePadding.y * 2.0f;
-        if (ImGui::ImageButton("##grd_cfg", grid_icon_texture_, ImVec2(icon_size, icon_size))) {
+        if (ImGui::ImageButton("##grd_cfg", grid_icon_texture_, ImVec2(icon_size, icon_size), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImVec4(0.0f, 0.0f, 0.0f, 0.0f), get_icon_tint())) {
             ImGui::OpenPopup("grid_settings_popup");
         }
         ImGui::PopStyleColor(3);
@@ -3002,7 +3004,7 @@ void ViewportWindow::Render(const ImGuiIO& io) {
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(67, 92, 124, 255));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(80, 108, 145, 255));
         const float icon_size = ImGui::GetFrameHeight() - style.FramePadding.y * 2.0f;
-        if (ImGui::ImageButton("##viewport_options_cfg", settings_icon_texture_, ImVec2(icon_size, icon_size))) {
+        if (ImGui::ImageButton("##viewport_options_cfg", settings_icon_texture_, ImVec2(icon_size, icon_size), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImVec4(0.0f, 0.0f, 0.0f, 0.0f), get_icon_tint())) {
             ImGui::OpenPopup("viewport_options_settings_popup");
         }
         ImGui::PopStyleColor(3);

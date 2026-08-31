@@ -17,6 +17,7 @@ struct IconTexture {
 };
 
 void set_icon_loader_black_recolor(const ImVec4* color_rgba);
+ImVec4 get_icon_tint();
 
 bool load_icon_rgba_from_file(const char* path, std::vector<uint8_t>* out_pixels, int* out_width, int* out_height);
 
