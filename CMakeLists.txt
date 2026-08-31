@@ -91,6 +91,16 @@ endif()
 
 add_custom_target(appdir
     COMMAND ${CMAKE_COMMAND} -E make_directory ${APPDIR}
+    COMMAND ${CMAKE_COMMAND} -E rm -rf ${APPDIR}/lib
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${APPDIR}/usr/${CMAKE_INSTALL_LIBDIR}
+
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:uv>
+        ${APPDIR}/usr/${CMAKE_INSTALL_LIBDIR}/$<TARGET_FILE_NAME:uv>
+
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+        $<TARGET_FILE_NAME:uv>
+        ${APPDIR}/usr/${CMAKE_INSTALL_LIBDIR}/$<TARGET_SONAME_FILE_NAME:uv>
 
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         ${CMAKE_SOURCE_DIR}/installer/AppRun.sh
@@ -106,6 +116,8 @@ add_custom_target(appdir
         ${CMAKE_SOURCE_DIR}/installer/resources/mtcad.png
         ${APPDIR}/mtcad.png
 )
+
+    add_dependencies(appdir uv)
 
 add_custom_target(appimage
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/dist
