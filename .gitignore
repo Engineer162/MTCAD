@@ -9,6 +9,7 @@ _CPack_Packages/
 .vs/
 out/
 release/
+debug/
 Output/
 .VSCodeCounter/
 *.deb

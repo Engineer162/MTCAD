@@ -347,7 +347,7 @@ static void setup_vulkan(ImVector<const char*> instance_extensions) {
     VkApplicationInfo app_info = {};
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     app_info.pApplicationName = "MTCAD";
-    app_info.applicationVersion = VK_MAKE_VERSION(0, 3, 0);
+    app_info.applicationVersion = VK_MAKE_VERSION(0, 3, 1);
     app_info.pEngineName = "MTKernel";
     app_info.engineVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
     app_info.apiVersion = VK_API_VERSION_1_1;
