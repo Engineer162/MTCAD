@@ -59,10 +59,12 @@ endif()
 
 install(TARGETS mtcad_kernel
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
 install(TARGETS uv
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
 if(MTCAD_BUILD_GUI)
@@ -102,10 +104,6 @@ add_custom_target(appdir
         $<TARGET_FILE:uv>
         ${APPDIR}/usr/${CMAKE_INSTALL_LIBDIR}/$<TARGET_FILE_NAME:uv>
 
-    COMMAND ${CMAKE_COMMAND} -E create_symlink
-        $<TARGET_FILE_NAME:uv>
-        ${APPDIR}/usr/${CMAKE_INSTALL_LIBDIR}/$<TARGET_SONAME_FILE_NAME:uv>
-
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         ${CMAKE_SOURCE_DIR}/installer/AppRun.sh
         ${APPDIR}/AppRun
@@ -120,6 +118,14 @@ add_custom_target(appdir
         ${CMAKE_SOURCE_DIR}/installer/resources/mtcad.png
         ${APPDIR}/mtcad.png
 )
+
+if(NOT WIN32)
+    add_custom_command(TARGET appdir
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+            $<TARGET_FILE_NAME:uv>
+            ${APPDIR}/usr/${CMAKE_INSTALL_LIBDIR}/$<TARGET_SONAME_FILE_NAME:uv>
+    )
+endif()
 
     add_dependencies(appdir uv)
 
