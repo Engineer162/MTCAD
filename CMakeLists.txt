@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(MTCAD VERSION 0.3.1 LANGUAGES C CXX)
+project(MTCAD VERSION 0.3.2 LANGUAGES C CXX)
 
 option(MTCAD_BUILD_GUI "Build the desktop ImGui GUI" ON)
 
@@ -58,6 +58,10 @@ if(MTCAD_BUILD_GUI)
 endif()
 
 install(TARGETS mtcad_kernel
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+install(TARGETS uv
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
