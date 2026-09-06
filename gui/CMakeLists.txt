@@ -11,6 +11,11 @@ add_library(mtcad_imgui STATIC
     ${MTCAD_IMGUI_DIR}/backends/imgui_impl_sdl3.cpp
 )
 
+configure_file(
+    ${CMAKE_SOURCE_DIR}/gui/src/version.h.in
+    ${CMAKE_SOURCE_DIR}/gui/src//version.h
+)
+
 target_include_directories(mtcad_imgui
     PUBLIC
         ${MTCAD_IMGUI_DIR}
@@ -25,6 +30,10 @@ target_link_libraries(mtcad_imgui
 
 add_executable(mtcad_gui
     src/main.cpp
+    src/version.cpp
+    src/runtime/settings_io.cpp
+    src/runtime/icon_bootstrap.cpp
+    src/runtime/vulkan_runtime.cpp
     src/tools/tool_manager.cpp
     src/tools/tools_init.cpp
     src/tools/sketch/create/line_tool.cpp
@@ -33,6 +42,7 @@ add_executable(mtcad_gui
     src/managers/path_manager.cpp
     src/managers/theme_manager.cpp
     src/managers/icon_manager.cpp
+    src/managers/shortcut_manager.cpp
     src/windows/settings_window.cpp
     src/windows/extrude_window.cpp
     src/windows/tool_window.cpp

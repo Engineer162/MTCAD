@@ -1,0 +1,11 @@
+#pragma once
+
+#define MTKernel_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define MTKernel_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define MTKernel_VERSION_PATCH @PROJECT_VERSION_PATCH@
+
+typedef struct mtkernel_version {
+    int major;
+    int minor;
+    int patch;
+} mtkernel_version;

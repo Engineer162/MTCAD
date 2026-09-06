@@ -1,0 +1,13 @@
+#pragma once
+
+#define MTCAD_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define MTCAD_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define MTCAD_VERSION_PATCH @PROJECT_VERSION_PATCH@
+
+typedef struct {
+    int major;
+    int minor;
+    int patch;
+} mtcad_application_version;
+
+mtcad_application_version mtcad_application_get_version();

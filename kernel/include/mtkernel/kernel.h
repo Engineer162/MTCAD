@@ -1,6 +1,8 @@
 #ifndef MTCAD_KERNEL_H
 #define MTCAD_KERNEL_H
 
+#include "mtkernel/version.h"
+
 #include <stddef.h>
 
 #ifdef __cplusplus
@@ -19,12 +21,6 @@ extern "C" {
     #define MTCAD_KERNEL_API
 #endif
 
-typedef struct mtcad_kernel_version {
-    int major;
-    int minor;
-    int patch;
-} mtcad_kernel_version;
-
 typedef struct mtcad_kernel_extrude_body_input {
     int body_id;
     double profile_area;
@@ -41,7 +37,7 @@ typedef struct mtcad_kernel_extrude_body_result {
     int status;
 } mtcad_kernel_extrude_body_result;
 
-MTCAD_KERNEL_API mtcad_kernel_version mtcad_kernel_get_version(void);
+MTCAD_KERNEL_API mtkernel_version mtkernel_get_version(void);
 MTCAD_KERNEL_API double mtcad_kernel_rectangle_area(double width, double height);
 MTCAD_KERNEL_API size_t mtcad_kernel_extrude_cut_parallel(
     const mtcad_kernel_extrude_body_input* inputs,

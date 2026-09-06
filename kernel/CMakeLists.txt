@@ -1,3 +1,10 @@
+project(MTKernel VERSION 1.0.0 LANGUAGES C)
+
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mtkernel/version.h.in
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mtkernel/version.h
+)
+
 add_library(mtcad_kernel SHARED
     src/kernel.c
     src/mt_thread.c

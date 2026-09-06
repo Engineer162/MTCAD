@@ -55,6 +55,26 @@ void ToolbarWindow::SetSketchMode(bool enabled) {
     active_tool_name_ = nullptr;
 }
 
+bool ToolbarWindow::IsSketchMode() const {
+    return sketch_mode_;
+}
+
+void ToolbarWindow::RequestBeginSketchMode() {
+    begin_sketch_request_pending_ = true;
+}
+
+void ToolbarWindow::RequestBeginSolidMode() {
+    begin_solid_mode_request_pending_ = true;
+}
+
+void ToolbarWindow::RequestSelectTool(const char* tool_name) {
+    if (tool_name == nullptr || tool_name[0] == '\0') {
+        return;
+    }
+    active_tool_name_ = tool_name;
+    selected_tool_name_pending_ = tool_name;
+}
+
 bool ToolbarWindow::ConsumeBeginSketchRequest() {
     if (!begin_sketch_request_pending_) {
         return false;

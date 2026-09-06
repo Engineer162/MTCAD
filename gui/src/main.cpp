@@ -4,18 +4,25 @@
 #include <filesystem>
 #include <cstdio>
 #include <cstdlib>
-#include <fstream>
 #include <functional>
 #include <string>
 #include <vector>
 
+#include "version.h"
+
 // Kernel
-#include "mtcad/kernel.h"
+#include "mtkernel/kernel.h"
 
 // Managers
 #include "managers/icon_manager.h"
+#include "managers/shortcut_manager.h"
 #include "managers/theme_manager.h"
 #include "managers/path_manager.h"
+
+// App
+#include "runtime/icon_bootstrap.h"
+#include "runtime/settings_io.h"
+#include "runtime/vulkan_runtime.h"
 
 // Windows
 #include "windows/settings_window.h"
@@ -55,21 +62,6 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 0x00000001;
 }
 #endif
 
-static VkAllocationCallbacks* g_allocator = nullptr;
-static VkInstance g_instance = VK_NULL_HANDLE;
-static VkPhysicalDevice g_physical_device = VK_NULL_HANDLE;
-static VkDevice g_device = VK_NULL_HANDLE;
-static uint32_t g_queue_family = (uint32_t)-1;
-static VkQueue g_queue = VK_NULL_HANDLE;
-static VkPipelineCache g_pipeline_cache = VK_NULL_HANDLE;
-static VkDescriptorPool g_descriptor_pool = VK_NULL_HANDLE;
-
-static ImGui_ImplVulkanH_Window g_main_window_data;
-static uint32_t g_min_image_count = 2;
-static bool g_swapchain_rebuild = false;
-static bool g_vulkan_fatal = false;
-static VkResult g_vulkan_last_error = VK_SUCCESS;
-
 static float clampf(float v, float min_v, float max_v) {
     if (v < min_v) {
         return min_v;
@@ -78,133 +70,6 @@ static float clampf(float v, float min_v, float max_v) {
         return max_v;
     }
     return v;
-}
-
-static std::string trim_copy(const std::string& value) {
-    const std::string ws = " \t\r\n";
-    const size_t start = value.find_first_not_of(ws);
-    if (start == std::string::npos) {
-        return std::string();
-    }
-    const size_t end = value.find_last_not_of(ws);
-    return value.substr(start, end - start + 1);
-}
-
-static void ensure_default_imgui_ini(const std::filesystem::path& settings_dir)
-{
-    const std::filesystem::path imgui_ini_path = settings_dir / "imgui.ini";
-    if (std::filesystem::exists(imgui_ini_path)) {
-        return;
-    }
-
-    const std::filesystem::path default_imgui_ini = get_app_lib_directory() / "imgui.ini";
-    if (!std::filesystem::exists(default_imgui_ini)) {
-        return;
-    }
-
-    std::error_code ec;
-    std::filesystem::copy_file(default_imgui_ini, imgui_ini_path, std::filesystem::copy_options::overwrite_existing, ec);
-}
-
-static bool load_user_settings_ini(const char* file_path, UserSettings* out_settings) {
-    if (file_path == nullptr || out_settings == nullptr) {
-        return false;
-    }
-    std::ifstream in(file_path);
-    if (!in.is_open()) {
-        return false;
-    }
-
-    UserSettings loaded = *out_settings;
-    std::string line;
-    while (std::getline(in, line)) {
-        const size_t equals = line.find('=');
-        if (equals == std::string::npos) {
-            continue;
-        }
-        const std::string key = trim_copy(line.substr(0, equals));
-        const std::string value = trim_copy(line.substr(equals + 1));
-        if (key.empty() || value.empty()) {
-            continue;
-        }
-
-        try {
-            if (key == "text_scale") {
-                loaded.text_scale = std::stof(value);
-            } else if (key == "icon_scale") {
-                loaded.icon_scale = std::stof(value);
-            } else if (key == "theme_index") {
-                loaded.theme_index = std::stoi(value);
-            } else if (key == "viewport_pan_button") {
-                loaded.viewport_pan_button = std::stoi(value);
-            } else if (key == "viewport_orbit_button") {
-                loaded.viewport_orbit_button = std::stoi(value);
-            } else if (key == "keyboard_navigation") {
-                loaded.keyboard_navigation_enabled = (std::stoi(value) != 0);
-            } else if (key == "workspace_root") {
-                loaded.workspace_root = value;
-            } else if (key == "window_x") {
-                loaded.window_x = std::stoi(value);
-            } else if (key == "window_y") {
-                loaded.window_y = std::stoi(value);
-            } else if (key == "window_width") {
-                loaded.window_width = std::stoi(value);
-            } else if (key == "window_height") {
-                loaded.window_height = std::stoi(value);
-            } else if (key == "window_fullscreen") {
-                loaded.window_fullscreen = (std::stoi(value) != 0);
-            }
-        } catch (...) {
-            continue;
-        }
-    }
-
-    loaded.text_scale = clampf(loaded.text_scale, 0.80f, 2.00f);
-    loaded.icon_scale = clampf(loaded.icon_scale, 0.80f, 2.00f);
-    loaded.theme_index = clamp_theme_index(loaded.theme_index);
-    if (loaded.viewport_pan_button < 0 || loaded.viewport_pan_button > 2) {
-        loaded.viewport_pan_button = 0;
-    }
-    if (loaded.viewport_orbit_button < 0 || loaded.viewport_orbit_button > 2) {
-        loaded.viewport_orbit_button = 1;
-    }
-    if (loaded.window_width < 640) {
-        loaded.window_width = 640;
-    }
-    if (loaded.window_height < 480) {
-        loaded.window_height = 480;
-    }
-    if (loaded.workspace_root.empty()) {
-        loaded.workspace_root = std::filesystem::current_path().string();
-    }
-
-    *out_settings = loaded;
-    return true;
-}
-
-static bool save_user_settings_ini(const char* file_path, const UserSettings& settings) {
-    if (file_path == nullptr) {
-        return false;
-    }
-    std::ofstream out(file_path, std::ios::trunc);
-    if (!out.is_open()) {
-        return false;
-    }
-
-    out << "[MTCAD]\n";
-    out << "text_scale=" << settings.text_scale << "\n";
-    out << "icon_scale=" << settings.icon_scale << "\n";
-    out << "theme_index=" << clamp_theme_index(settings.theme_index) << "\n";
-    out << "viewport_pan_button=" << settings.viewport_pan_button << "\n";
-    out << "viewport_orbit_button=" << settings.viewport_orbit_button << "\n";
-    out << "keyboard_navigation=" << (settings.keyboard_navigation_enabled ? 1 : 0) << "\n";
-    out << "workspace_root=" << settings.workspace_root << "\n";
-    out << "window_x=" << settings.window_x << "\n";
-    out << "window_y=" << settings.window_y << "\n";
-    out << "window_width=" << settings.window_width << "\n";
-    out << "window_height=" << settings.window_height << "\n";
-    out << "window_fullscreen=" << (settings.window_fullscreen ? 1 : 0) << "\n";
-    return out.good();
 }
 
 static ImGuiMouseButton pan_button_from_index(int index) {
@@ -225,37 +90,6 @@ static ImGuiMouseButton orbit_button_from_index(int index) {
     }
 }
 
-static std::string resolve_icon_path(const char* icon_name) {
-    if (icon_name == nullptr || icon_name[0] == '\0') {
-        return std::string();
-    }
-
-    const std::filesystem::path icon_path = get_app_data_directory() / "icons" / (std::string(icon_name) + ".png");
-    if (std::filesystem::exists(icon_path)) {
-        return icon_path.string();
-    }
-    return std::string();
-}
-
-static void try_set_sdl_window_icon(SDL_Window* window) {
-    if (window == nullptr) {
-        return;
-    }
-
-    const std::filesystem::path app_icon_path = get_app_data_directory() / "icons" / "mtcad.png";
-    std::vector<uint8_t> pixels;
-    int width = 0;
-    int height = 0;
-    if (!load_icon_rgba_from_file(app_icon_path.string().c_str(), &pixels, &width, &height)) {
-        return;
-    }
-
-    SDL_Surface* icon_surface = SDL_CreateSurfaceFrom(width, height, SDL_PIXELFORMAT_RGBA32, pixels.data(), width * 4);
-    if (icon_surface != nullptr) {
-        SDL_SetWindowIcon(window, icon_surface);
-        SDL_DestroySurface(icon_surface);
-    }
-}
 
 enum class AppIcon {
     Settings = 0,
@@ -305,319 +139,6 @@ static constexpr size_t icon_slot_index(AppIcon icon) {
     return (size_t)icon;
 }
 
-static const char* vk_result_name(VkResult err) {
-    switch (err) {
-        case VK_SUCCESS: return "VK_SUCCESS";
-        case VK_NOT_READY: return "VK_NOT_READY";
-        case VK_TIMEOUT: return "VK_TIMEOUT";
-        case VK_EVENT_SET: return "VK_EVENT_SET";
-        case VK_EVENT_RESET: return "VK_EVENT_RESET";
-        case VK_INCOMPLETE: return "VK_INCOMPLETE";
-        case VK_SUBOPTIMAL_KHR: return "VK_SUBOPTIMAL_KHR";
-        case VK_ERROR_OUT_OF_DATE_KHR: return "VK_ERROR_OUT_OF_DATE_KHR";
-        case VK_ERROR_DEVICE_LOST: return "VK_ERROR_DEVICE_LOST";
-        case VK_ERROR_INITIALIZATION_FAILED: return "VK_ERROR_INITIALIZATION_FAILED";
-        default: return "VK_RESULT_UNKNOWN";
-    }
-}
-
-static void check_vk_result(VkResult err) {
-    if (err == VK_SUCCESS) {
-        return;
-    }
-    std::fprintf(stderr, "[vulkan] Error: %s (%d)\n", vk_result_name(err), err);
-    if (err < 0) {
-        g_vulkan_fatal = true;
-        g_vulkan_last_error = err;
-    }
-}
-
-static bool is_extension_available(const ImVector<VkExtensionProperties>& properties, const char* extension) {
-    for (const VkExtensionProperties& p : properties) {
-        if (std::strcmp(p.extensionName, extension) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static void setup_vulkan(ImVector<const char*> instance_extensions) {
-    VkResult err;
-
-    VkApplicationInfo app_info = {};
-    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    app_info.pApplicationName = "MTCAD";
-    app_info.applicationVersion = VK_MAKE_VERSION(0, 3, 2);
-    app_info.pEngineName = "MTKernel";
-    app_info.engineVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
-    app_info.apiVersion = VK_API_VERSION_1_1;
-
-    VkInstanceCreateInfo create_info = {};
-    create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    create_info.pApplicationInfo = &app_info;
-
-    uint32_t properties_count = 0;
-    ImVector<VkExtensionProperties> properties;
-    vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, nullptr);
-    properties.resize(properties_count);
-    err = vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, properties.Data);
-    check_vk_result(err);
-
-    if (is_extension_available(properties, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME)) {
-        instance_extensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
-    }
-
-    create_info.enabledExtensionCount = (uint32_t)instance_extensions.Size;
-    create_info.ppEnabledExtensionNames = instance_extensions.Data;
-    err = vkCreateInstance(&create_info, g_allocator, &g_instance);
-    check_vk_result(err);
-
-    uint32_t gpu_count = 0;
-    err = vkEnumeratePhysicalDevices(g_instance, &gpu_count, nullptr);
-    check_vk_result(err);
-    if (gpu_count == 0) {
-        g_vulkan_fatal = true;
-        g_vulkan_last_error = VK_ERROR_INITIALIZATION_FAILED;
-        return;
-    }
-
-    ImVector<VkPhysicalDevice> physical_devices;
-    physical_devices.resize((int)gpu_count);
-    err = vkEnumeratePhysicalDevices(g_instance, &gpu_count, physical_devices.Data);
-    check_vk_result(err);
-    if (g_vulkan_fatal) {
-        return;
-    }
-    g_physical_device = physical_devices[0];
-
-    uint32_t queue_family_count = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties(g_physical_device, &queue_family_count, nullptr);
-    ImVector<VkQueueFamilyProperties> queue_families;
-    queue_families.resize((int)queue_family_count);
-    vkGetPhysicalDeviceQueueFamilyProperties(g_physical_device, &queue_family_count, queue_families.Data);
-
-    for (uint32_t i = 0; i < queue_family_count; ++i) {
-        if ((queue_families[(int)i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0) {
-            g_queue_family = i;
-            break;
-        }
-    }
-    if (g_queue_family == (uint32_t)-1) {
-        g_vulkan_fatal = true;
-        g_vulkan_last_error = VK_ERROR_INITIALIZATION_FAILED;
-        return;
-    }
-
-    ImVector<const char*> device_extensions;
-    device_extensions.push_back("VK_KHR_swapchain");
-
-    const float queue_priority[] = { 1.0f };
-    VkDeviceQueueCreateInfo queue_info[1] = {};
-    queue_info[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queue_info[0].queueFamilyIndex = g_queue_family;
-    queue_info[0].queueCount = 1;
-    queue_info[0].pQueuePriorities = queue_priority;
-
-    VkDeviceCreateInfo device_create_info = {};
-    device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    device_create_info.queueCreateInfoCount = 1;
-    device_create_info.pQueueCreateInfos = queue_info;
-    device_create_info.enabledExtensionCount = (uint32_t)device_extensions.Size;
-    device_create_info.ppEnabledExtensionNames = device_extensions.Data;
-
-    err = vkCreateDevice(g_physical_device, &device_create_info, g_allocator, &g_device);
-    check_vk_result(err);
-    vkGetDeviceQueue(g_device, g_queue_family, 0, &g_queue);
-
-    VkDescriptorPoolSize pool_sizes[] = {
-        { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
-        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
-        { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 },
-    };
-
-    VkDescriptorPoolCreateInfo pool_info = {};
-    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    pool_info.maxSets = 1000 * (uint32_t)IM_ARRAYSIZE(pool_sizes);
-    pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
-    pool_info.pPoolSizes = pool_sizes;
-
-    err = vkCreateDescriptorPool(g_device, &pool_info, g_allocator, &g_descriptor_pool);
-    check_vk_result(err);
-}
-
-static void setup_vulkan_window(ImGui_ImplVulkanH_Window* wd, VkSurfaceKHR surface, int width, int height) {
-    VkBool32 res = VK_FALSE;
-    vkGetPhysicalDeviceSurfaceSupportKHR(g_physical_device, g_queue_family, surface, &res);
-    if (res != VK_TRUE) {
-        std::fprintf(stderr, "Error: no WSI support on selected device\n");
-        std::exit(1);
-    }
-
-    const VkFormat request_surface_image_format[] = {
-        VK_FORMAT_B8G8R8A8_UNORM,
-        VK_FORMAT_R8G8B8A8_UNORM,
-        VK_FORMAT_B8G8R8_UNORM,
-        VK_FORMAT_R8G8B8_UNORM,
-    };
-    const VkColorSpaceKHR request_surface_color_space = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-    wd->Surface = surface;
-    wd->SurfaceFormat = ImGui_ImplVulkanH_SelectSurfaceFormat(
-        g_physical_device,
-        wd->Surface,
-        request_surface_image_format,
-        IM_ARRAYSIZE(request_surface_image_format),
-        request_surface_color_space
-    );
-
-    const VkPresentModeKHR present_modes[] = { VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_FIFO_KHR };
-    wd->PresentMode = ImGui_ImplVulkanH_SelectPresentMode(g_physical_device, wd->Surface, present_modes, IM_ARRAYSIZE(present_modes));
-
-    IM_ASSERT(g_min_image_count >= 2);
-    ImGui_ImplVulkanH_CreateOrResizeWindow(
-        g_instance,
-        g_physical_device,
-        g_device,
-        wd,
-        g_queue_family,
-        g_allocator,
-        width,
-        height,
-        g_min_image_count,
-        0
-    );
-}
-
-static void cleanup_vulkan_window(ImGui_ImplVulkanH_Window* wd) {
-    ImGui_ImplVulkanH_DestroyWindow(g_instance, g_device, wd, g_allocator);
-    vkDestroySurfaceKHR(g_instance, wd->Surface, g_allocator);
-}
-
-static void cleanup_vulkan() {
-    vkDestroyDescriptorPool(g_device, g_descriptor_pool, g_allocator);
-    vkDestroyDevice(g_device, g_allocator);
-    vkDestroyInstance(g_instance, g_allocator);
-}
-
-static void frame_render(ImGui_ImplVulkanH_Window* wd, ImDrawData* draw_data) {
-    if (g_vulkan_fatal) {
-        return;
-    }
-
-    VkSemaphore image_acquired_semaphore = wd->FrameSemaphores[wd->SemaphoreIndex].ImageAcquiredSemaphore;
-    VkSemaphore render_complete_semaphore = wd->FrameSemaphores[wd->SemaphoreIndex].RenderCompleteSemaphore;
-
-    VkResult err = vkAcquireNextImageKHR(g_device, wd->Swapchain, UINT64_MAX, image_acquired_semaphore, VK_NULL_HANDLE, &wd->FrameIndex);
-    if (err == VK_ERROR_OUT_OF_DATE_KHR || err == VK_SUBOPTIMAL_KHR) {
-        g_swapchain_rebuild = true;
-    }
-    if (err == VK_ERROR_OUT_OF_DATE_KHR) {
-        return;
-    }
-    if (err != VK_SUCCESS && err != VK_SUBOPTIMAL_KHR) {
-        check_vk_result(err);
-        return;
-    }
-
-    ImGui_ImplVulkanH_Frame* fd = &wd->Frames[wd->FrameIndex];
-    err = vkWaitForFences(g_device, 1, &fd->Fence, VK_TRUE, UINT64_MAX);
-    check_vk_result(err);
-    if (g_vulkan_fatal) {
-        return;
-    }
-
-    err = vkResetFences(g_device, 1, &fd->Fence);
-    check_vk_result(err);
-    if (g_vulkan_fatal) {
-        return;
-    }
-
-    err = vkResetCommandPool(g_device, fd->CommandPool, 0);
-    check_vk_result(err);
-    if (g_vulkan_fatal) {
-        return;
-    }
-
-    VkCommandBufferBeginInfo begin_info = {};
-    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    begin_info.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    err = vkBeginCommandBuffer(fd->CommandBuffer, &begin_info);
-    check_vk_result(err);
-    if (g_vulkan_fatal) {
-        return;
-    }
-
-    VkRenderPassBeginInfo render_pass_info = {};
-    render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    render_pass_info.renderPass = wd->RenderPass;
-    render_pass_info.framebuffer = fd->Framebuffer;
-    render_pass_info.renderArea.extent.width = wd->Width;
-    render_pass_info.renderArea.extent.height = wd->Height;
-    render_pass_info.clearValueCount = 1;
-    render_pass_info.pClearValues = &wd->ClearValue;
-
-    vkCmdBeginRenderPass(fd->CommandBuffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
-    ImGui_ImplVulkan_RenderDrawData(draw_data, fd->CommandBuffer);
-    vkCmdEndRenderPass(fd->CommandBuffer);
-
-    VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    VkSubmitInfo submit_info = {};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.waitSemaphoreCount = 1;
-    submit_info.pWaitSemaphores = &image_acquired_semaphore;
-    submit_info.pWaitDstStageMask = &wait_stage;
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &fd->CommandBuffer;
-    submit_info.signalSemaphoreCount = 1;
-    submit_info.pSignalSemaphores = &render_complete_semaphore;
-
-    err = vkEndCommandBuffer(fd->CommandBuffer);
-    check_vk_result(err);
-    if (g_vulkan_fatal) {
-        return;
-    }
-
-    err = vkQueueSubmit(g_queue, 1, &submit_info, fd->Fence);
-    check_vk_result(err);
-}
-
-static void frame_present(ImGui_ImplVulkanH_Window* wd) {
-    if (g_swapchain_rebuild || g_vulkan_fatal) {
-        return;
-    }
-
-    VkSemaphore render_complete_semaphore = wd->FrameSemaphores[wd->SemaphoreIndex].RenderCompleteSemaphore;
-    VkPresentInfoKHR info = {};
-    info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    info.waitSemaphoreCount = 1;
-    info.pWaitSemaphores = &render_complete_semaphore;
-    info.swapchainCount = 1;
-    info.pSwapchains = &wd->Swapchain;
-    info.pImageIndices = &wd->FrameIndex;
-
-    VkResult err = vkQueuePresentKHR(g_queue, &info);
-    if (err == VK_ERROR_OUT_OF_DATE_KHR || err == VK_SUBOPTIMAL_KHR) {
-        g_swapchain_rebuild = true;
-    }
-    if (err == VK_ERROR_OUT_OF_DATE_KHR) {
-        return;
-    }
-    if (err != VK_SUCCESS && err != VK_SUBOPTIMAL_KHR) {
-        check_vk_result(err);
-        return;
-    }
-
-    wd->SemaphoreIndex = (wd->SemaphoreIndex + 1) % wd->SemaphoreCount;
-}
-
 int main() {
     auto show_fatal_error = [](const char* title, const char* details) {
         const std::string message = (details != nullptr && details[0] != '\0')
@@ -636,10 +157,9 @@ int main() {
     UserSettings applied_settings;
     applied_settings.window_x = SDL_WINDOWPOS_CENTERED;
     applied_settings.window_y = SDL_WINDOWPOS_CENTERED;
-    load_user_settings_ini(user_settings_file.string().c_str(), &applied_settings);
-    ensure_default_imgui_ini(settings_dir);
-
-    const mtcad_kernel_version version = mtcad_kernel_get_version();
+    mtcad::runtime::ApplyDefaultShortcuts(&applied_settings);
+    mtcad::runtime::LoadUserSettingsIni(user_settings_file.string().c_str(), &applied_settings);
+    mtcad::runtime::EnsureDefaultImGuiIni(settings_dir);
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
         show_fatal_error("MTCAD startup error", SDL_GetError());
@@ -658,7 +178,7 @@ int main() {
     if (applied_settings.window_fullscreen) {
         SDL_SetWindowFullscreen(window, true);
     }
-    try_set_sdl_window_icon(window);
+    mtcad::runtime::TrySetSdlWindowIcon(window);
 
     ImVector<const char*> instance_extensions;
     uint32_t sdl_extensions_count = 0;
@@ -673,13 +193,13 @@ int main() {
         instance_extensions.push_back(sdl_extensions[n]);
     }
 
-    setup_vulkan(instance_extensions);
+    mtcad::runtime::SetupVulkan(instance_extensions);
 
     VkSurfaceKHR surface = VK_NULL_HANDLE;
-    if (!SDL_Vulkan_CreateSurface(window, g_instance, g_allocator, &surface)) {
+    if (!mtcad::runtime::CreateWindowSurface(window, &surface)) {
         show_fatal_error("MTCAD startup error", "Failed to create Vulkan surface.");
         SDL_DestroyWindow(window);
-        cleanup_vulkan();
+        mtcad::runtime::CleanupVulkan();
         SDL_Quit();
         return 1;
     }
@@ -687,8 +207,8 @@ int main() {
     int width = 0;
     int height = 0;
     SDL_GetWindowSizeInPixels(window, &width, &height);
-    ImGui_ImplVulkanH_Window* wd = &g_main_window_data;
-    setup_vulkan_window(wd, surface, width, height);
+    ImGui_ImplVulkanH_Window* wd = mtcad::runtime::GetMainWindowData();
+    mtcad::runtime::SetupVulkanWindow(wd, surface, width, height);
     SDL_ShowWindow(window);
 
     IMGUI_CHECKVERSION();
@@ -706,22 +226,22 @@ int main() {
     ImGui_ImplSDL3_InitForVulkan(window);
 
     ImGui_ImplVulkan_InitInfo init_info = {};
-    init_info.Instance = g_instance;
-    init_info.PhysicalDevice = g_physical_device;
-    init_info.Device = g_device;
-    init_info.QueueFamily = g_queue_family;
-    init_info.Queue = g_queue;
-    init_info.PipelineCache = g_pipeline_cache;
-    init_info.DescriptorPool = g_descriptor_pool;
-    init_info.MinImageCount = g_min_image_count;
+    init_info.Instance = mtcad::runtime::GetInstance();
+    init_info.PhysicalDevice = mtcad::runtime::GetPhysicalDevice();
+    init_info.Device = mtcad::runtime::GetDevice();
+    init_info.QueueFamily = mtcad::runtime::GetQueueFamily();
+    init_info.Queue = mtcad::runtime::GetQueue();
+    init_info.PipelineCache = mtcad::runtime::GetPipelineCache();
+    init_info.DescriptorPool = mtcad::runtime::GetDescriptorPool();
+    init_info.MinImageCount = mtcad::runtime::GetMinImageCount();
     init_info.ImageCount = wd->ImageCount;
-    init_info.Allocator = g_allocator;
+    init_info.Allocator = mtcad::runtime::GetAllocator();
     init_info.ApiVersion = VK_API_VERSION_1_1;
     init_info.MinAllocationSize = 1024 * 1024;
     init_info.PipelineInfoMain.RenderPass = wd->RenderPass;
     init_info.PipelineInfoMain.Subpass = 0;
     init_info.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-    init_info.CheckVkResultFn = check_vk_result;
+    init_info.CheckVkResultFn = mtcad::runtime::CheckVkResult;
     ImGui_ImplVulkan_Init(&init_info);
 
     ImVec4 selected_theme_icon_tint;
@@ -770,15 +290,15 @@ int main() {
     };
 
     for (IconSlot& slot : icons) {
-        slot.path = resolve_icon_path(slot.name);
+        slot.path = mtcad::runtime::ResolveIconPath(slot.name);
         if (!slot.path.empty()) {
             slot.loaded = load_icon_texture_from_file(
                 slot.path.c_str(),
-                g_physical_device,
-                g_device,
-                g_queue_family,
-                g_queue,
-                g_allocator,
+                mtcad::runtime::GetPhysicalDevice(),
+                mtcad::runtime::GetDevice(),
+                mtcad::runtime::GetQueueFamily(),
+                mtcad::runtime::GetQueue(),
+                mtcad::runtime::GetAllocator(),
                 &slot.texture);
         }
     }
@@ -873,6 +393,20 @@ int main() {
     });
 
     bool show_settings_window = false;
+    bool shortcut_new_was_down = false;
+    bool shortcut_open_was_down = false;
+    bool shortcut_save_was_down = false;
+    bool shortcut_undo_was_down = false;
+    bool shortcut_redo_was_down = false;
+    bool shortcut_settings_was_down = false;
+    bool shortcut_about_was_down = false;
+    bool shortcut_create_sketch_was_down = false;
+    bool shortcut_finish_sketch_was_down = false;
+    bool shortcut_extrude_was_down = false;
+    bool shortcut_revolve_was_down = false;
+    bool shortcut_line_was_down = false;
+    bool shortcut_rectangle_was_down = false;
+    bool shortcut_circle_was_down = false;
 
     bool done = false;
     bool showed_vulkan_fatal_message = false;
@@ -896,17 +430,78 @@ int main() {
         int fb_width = 0;
         int fb_height = 0;
         SDL_GetWindowSizeInPixels(window, &fb_width, &fb_height);
-        if (fb_width > 0 && fb_height > 0 && (g_swapchain_rebuild || wd->Width != fb_width || wd->Height != fb_height)) {
-            ImGui_ImplVulkan_SetMinImageCount(g_min_image_count);
-            ImGui_ImplVulkanH_CreateOrResizeWindow(g_instance, g_physical_device, g_device, wd, g_queue_family, g_allocator, fb_width, fb_height, g_min_image_count, 0);
-            wd->FrameIndex = 0;
-            g_swapchain_rebuild = false;
-        }
+        mtcad::runtime::RebuildSwapchainIfNeeded(wd, fb_width, fb_height);
 
         ImGui_ImplVulkan_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
         io.FontGlobalScale = ui_text_scale;
+
+        const bool shortcut_capture_active = settings_window.IsCapturingShortcut();
+        const bool shortcuts_blocked = shortcut_capture_active || io.WantTextInput;
+        auto consume_shortcut_press = [&](const ShortcutChord& chord, bool* was_down) {
+            const bool is_down = !shortcuts_blocked && IsShortcutDown(chord);
+            const bool fired = is_down && !(*was_down);
+            *was_down = is_down;
+            return fired;
+        };
+
+        const bool shortcut_new_pressed = consume_shortcut_press(applied_settings.shortcut_new, &shortcut_new_was_down);
+        const bool shortcut_open_pressed = consume_shortcut_press(applied_settings.shortcut_open, &shortcut_open_was_down);
+        const bool shortcut_save_pressed = consume_shortcut_press(applied_settings.shortcut_save, &shortcut_save_was_down);
+        const bool shortcut_undo_pressed = consume_shortcut_press(applied_settings.shortcut_undo, &shortcut_undo_was_down);
+        const bool shortcut_redo_pressed = consume_shortcut_press(applied_settings.shortcut_redo, &shortcut_redo_was_down);
+        const bool shortcut_settings_pressed = consume_shortcut_press(applied_settings.shortcut_settings, &shortcut_settings_was_down);
+        const bool shortcut_about_pressed = consume_shortcut_press(applied_settings.shortcut_about, &shortcut_about_was_down);
+        const bool shortcut_create_sketch_pressed = consume_shortcut_press(applied_settings.shortcut_create_sketch, &shortcut_create_sketch_was_down);
+        const bool shortcut_finish_sketch_pressed = consume_shortcut_press(applied_settings.shortcut_finish_sketch, &shortcut_finish_sketch_was_down);
+        const bool shortcut_extrude_pressed = consume_shortcut_press(applied_settings.shortcut_extrude, &shortcut_extrude_was_down);
+        const bool shortcut_revolve_pressed = consume_shortcut_press(applied_settings.shortcut_revolve, &shortcut_revolve_was_down);
+        const bool shortcut_line_pressed = consume_shortcut_press(applied_settings.shortcut_line, &shortcut_line_was_down);
+        const bool shortcut_rectangle_pressed = consume_shortcut_press(applied_settings.shortcut_rectangle, &shortcut_rectangle_was_down);
+        const bool shortcut_circle_pressed = consume_shortcut_press(applied_settings.shortcut_circle, &shortcut_circle_was_down);
+
+        if (shortcut_settings_pressed) {
+            show_settings_window = true;
+        }
+        if (shortcut_about_pressed) {
+            about_window.SetOpen(true);
+        }
+        if (shortcut_create_sketch_pressed) {
+            toolbar_window.RequestBeginSketchMode();
+            tool_window.Open();
+        }
+        if (shortcut_finish_sketch_pressed) {
+            toolbar_window.RequestBeginSolidMode();
+        }
+        if (shortcut_extrude_pressed) {
+            toolbar_window.RequestSelectTool("Extrude");
+        }
+        if (shortcut_revolve_pressed) {
+            toolbar_window.RequestSelectTool("Revolve");
+        }
+        if (toolbar_window.IsSketchMode() && shortcut_line_pressed) {
+            toolbar_window.RequestSelectTool("Line");
+        }
+        if (toolbar_window.IsSketchMode() && shortcut_rectangle_pressed) {
+            toolbar_window.RequestSelectTool("Rectangle");
+        }
+        if (toolbar_window.IsSketchMode() && shortcut_circle_pressed) {
+            toolbar_window.RequestSelectTool("Circle");
+        }
+
+        const std::string shortcut_new_label = ShortcutToDisplayString(applied_settings.shortcut_new);
+        const std::string shortcut_open_label = ShortcutToDisplayString(applied_settings.shortcut_open);
+        const std::string shortcut_save_label = ShortcutToDisplayString(applied_settings.shortcut_save);
+        const std::string shortcut_undo_label = ShortcutToDisplayString(applied_settings.shortcut_undo);
+        const std::string shortcut_redo_label = ShortcutToDisplayString(applied_settings.shortcut_redo);
+        const std::string shortcut_about_label = ShortcutToDisplayString(applied_settings.shortcut_about);
+
+        bool trigger_new_action = shortcut_new_pressed;
+        bool trigger_open_action = shortcut_open_pressed;
+        bool trigger_save_action = shortcut_save_pressed;
+        bool trigger_undo_action = shortcut_undo_pressed;
+        bool trigger_redo_action = shortcut_redo_pressed;
 
         const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
         const ImVec2 navbar_button_padding(4.0f, 3.0f);
@@ -1097,7 +692,7 @@ int main() {
             const char* file_fallback_label = "File";
             const IconSlot& file_icon = icon_slot(AppIcon::File);
             const bool has_file_icon = file_icon.loaded && file_icon.texture.descriptor_set != VK_NULL_HANDLE;
-            bool open_file_popup = false;
+            bool open_file_popup = trigger_new_action || trigger_open_action || trigger_save_action;
 
             if (has_file_icon) {
                 if (render_dropdown_icon_button("##file_icon", (ImTextureID)file_icon.texture.descriptor_set, file_icon_size, "File")) {
@@ -1119,14 +714,17 @@ int main() {
                 ImGui::OpenPopup("FilePopup");
             }
             if (ImGui::BeginPopup("FilePopup")) {
-                if (ImGui::MenuItem("New", "Ctrl+N")) {
+                if (ImGui::MenuItem("New", shortcut_new_label.c_str()) || trigger_new_action) {
                     //create_new_show();
+                    trigger_new_action = false;
                 }
-                if (ImGui::MenuItem("Open...", "Ctrl+O")) {
+                if (ImGui::MenuItem("Open...", shortcut_open_label.c_str()) || trigger_open_action) {
                     //request_open_show_dialog();
+                    trigger_open_action = false;
                 }
-                if (ImGui::MenuItem("Save", "Ctrl+S")) {
+                if (ImGui::MenuItem("Save", shortcut_save_label.c_str()) || trigger_save_action) {
                     //save_current_show(false);
+                    trigger_save_action = false;
                 }
                 if (ImGui::MenuItem("Save As...")) {
                     //request_save_show_as_dialog(false);
@@ -1250,8 +848,12 @@ int main() {
             if (open_undo_popup) {
                 ImGui::OpenPopup("UndoPopup");
             }
+            if (trigger_undo_action) {
+                ImGui::OpenPopup("UndoPopup");
+                trigger_undo_action = false;
+            }
             if (ImGui::BeginPopup("UndoPopup")) {
-                if (ImGui::MenuItem("Undo", "Ctrl+Z")) {
+                if (ImGui::MenuItem("Undo", shortcut_undo_label.c_str())) {
                     // TODO: route to undo command stack.
                 }
                 ImGui::Separator();
@@ -1292,8 +894,12 @@ int main() {
             if (open_redo_popup) {
                 ImGui::OpenPopup("RedoPopup");
             }
+            if (trigger_redo_action) {
+                ImGui::OpenPopup("RedoPopup");
+                trigger_redo_action = false;
+            }
             if (ImGui::BeginPopup("RedoPopup")) {
-                if (ImGui::MenuItem("Redo", "Ctrl+Y")) {
+                if (ImGui::MenuItem("Redo", shortcut_redo_label.c_str())) {
                     // TODO: route to redo command stack.
                 }
                 ImGui::Separator();
@@ -1365,7 +971,7 @@ int main() {
                 ImGui::OpenPopup("HelpButtonPopup");
             }
             if (ImGui::BeginPopup("HelpButtonPopup")) {
-                if (ImGui::MenuItem("About")) {
+                if (ImGui::MenuItem("About", shortcut_about_label.c_str()) || shortcut_about_pressed) {
                     about_window.SetOpen(true);
                 }
                 ImGui::EndPopup();
@@ -1431,7 +1037,7 @@ int main() {
                     io.ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;
                 }
 
-                save_user_settings_ini(user_settings_file.string().c_str(), applied_settings);
+                mtcad::runtime::SaveUserSettingsIni(user_settings_file.string().c_str(), applied_settings);
             }
 
             if (settings_result.cancel_pressed || !settings_open) {
@@ -1606,13 +1212,14 @@ int main() {
         wd->ClearValue.color.float32[2] = clear_color.z * clear_color.w;
         wd->ClearValue.color.float32[3] = clear_color.w;
         if (!is_minimized) {
-            frame_render(wd, draw_data);
-            frame_present(wd);
+            mtcad::runtime::FrameRender(wd, draw_data);
+            mtcad::runtime::FramePresent(wd);
         }
 
-        if (g_vulkan_fatal && !showed_vulkan_fatal_message) {
-            const std::string fatal_msg = std::string("Vulkan fatal error: ") + vk_result_name(g_vulkan_last_error) +
-                " (" + std::to_string((int)g_vulkan_last_error) + ")";
+        if (mtcad::runtime::IsVulkanFatal() && !showed_vulkan_fatal_message) {
+            const VkResult last_error = mtcad::runtime::GetVulkanLastError();
+            const std::string fatal_msg = std::string("Vulkan fatal error: ") + mtcad::runtime::VkResultName(last_error) +
+                " (" + std::to_string((int)last_error) + ")";
             show_fatal_error("MTCAD Vulkan error", fatal_msg.c_str());
             showed_vulkan_fatal_message = true;
             done = true;
@@ -1634,15 +1241,15 @@ int main() {
         applied_settings.window_height = saved_window_h;
     }
     applied_settings.window_fullscreen = (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) != 0;
-    save_user_settings_ini(user_settings_file.string().c_str(), applied_settings);
+    mtcad::runtime::SaveUserSettingsIni(user_settings_file.string().c_str(), applied_settings);
 
-    VkResult err = vkDeviceWaitIdle(g_device);
+    VkResult err = vkDeviceWaitIdle(mtcad::runtime::GetDevice());
     if (err != VK_SUCCESS && err != VK_ERROR_DEVICE_LOST) {
-        check_vk_result(err);
+        mtcad::runtime::CheckVkResult(err);
     }
 
     for (IconSlot& slot : icons) {
-        destroy_icon_texture(g_device, g_allocator, &slot.texture);
+        destroy_icon_texture(mtcad::runtime::GetDevice(), mtcad::runtime::GetAllocator(), &slot.texture);
     }
 
 
@@ -1650,8 +1257,8 @@ int main() {
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
 
-    cleanup_vulkan_window(wd);
-    cleanup_vulkan();
+    mtcad::runtime::CleanupVulkanWindow(wd);
+    mtcad::runtime::CleanupVulkan();
 
     SDL_DestroyWindow(window);
     SDL_Quit();

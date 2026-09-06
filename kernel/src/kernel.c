@@ -1,15 +1,15 @@
-#include "mtcad/kernel.h"
+#include "mtkernel/kernel.h"
 
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include "mt_thread.h"
 
-mtcad_kernel_version mtcad_kernel_get_version(void) {
-    mtcad_kernel_version version;
-    version.major = 1;
-    version.minor = 0;
-    version.patch = 0;
+mtkernel_version mtkernel_get_version(void) {
+    mtkernel_version version;
+    version.major = MTKernel_VERSION_MAJOR;
+    version.minor = MTKernel_VERSION_MINOR;
+    version.patch = MTKernel_VERSION_PATCH;
     return version;
 }
 

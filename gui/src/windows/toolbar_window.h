@@ -33,6 +33,10 @@ public:
 
     void SetIconScale(float icon_scale);
     void SetSketchMode(bool enabled);
+    bool IsSketchMode() const;
+    void RequestBeginSketchMode();
+    void RequestBeginSolidMode();
+    void RequestSelectTool(const char* tool_name);
     bool ConsumeBeginSketchRequest();
     bool ConsumeBeginSolidModeRequest();
     bool ConsumeSelectedTool(const char** out_tool_name);

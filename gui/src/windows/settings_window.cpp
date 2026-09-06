@@ -2,8 +2,26 @@
 
 #include "../managers/theme_manager.h"
 
+#include <cfloat>
 #include <cstring>
 #include <filesystem>
+
+bool SettingsWindow::IsCapturingShortcut() const {
+    return IsShortcutAssignmentActive(shortcut_new_state_) ||
+        IsShortcutAssignmentActive(shortcut_open_state_) ||
+        IsShortcutAssignmentActive(shortcut_save_state_) ||
+        IsShortcutAssignmentActive(shortcut_undo_state_) ||
+        IsShortcutAssignmentActive(shortcut_redo_state_) ||
+        IsShortcutAssignmentActive(shortcut_settings_state_) ||
+    IsShortcutAssignmentActive(shortcut_about_state_) ||
+    IsShortcutAssignmentActive(shortcut_create_sketch_state_) ||
+    IsShortcutAssignmentActive(shortcut_finish_sketch_state_) ||
+    IsShortcutAssignmentActive(shortcut_extrude_state_) ||
+    IsShortcutAssignmentActive(shortcut_revolve_state_) ||
+    IsShortcutAssignmentActive(shortcut_line_state_) ||
+    IsShortcutAssignmentActive(shortcut_rectangle_state_) ||
+    IsShortcutAssignmentActive(shortcut_circle_state_);
+}
 
 SettingsWindowResult SettingsWindow::Render(bool* open, UserSettings* pending_settings) {
     SettingsWindowResult result;
@@ -89,7 +107,39 @@ SettingsWindowResult SettingsWindow::Render(bool* open, UserSettings* pending_se
     } else if (selected_section_ == Section::Shortcuts) {
         ImGui::TextUnformatted("Shortcuts");
         ImGui::Separator();
-        ImGui::TextWrapped("Shortcut customization is not yet implemented. This section is ready for command mapping controls.");
+        if (ImGui::BeginTable("shortcut_assignment_table", 2, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_BordersInnerH)) {
+            ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthStretch, 0.55f);
+            ImGui::TableSetupColumn("Shortcut", ImGuiTableColumnFlags_WidthStretch, 0.45f);
+
+            auto draw_shortcut_row = [](const char* action_name, const char* widget_id, ShortcutChord* chord, ShortcutAssignmentState* state) {
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::AlignTextToFramePadding();
+                ImGui::TextUnformatted(action_name);
+
+                ImGui::TableSetColumnIndex(1);
+                ImGui::SetNextItemWidth(-FLT_MIN);
+                DrawShortcutAssignmentWidget(widget_id, chord, state);
+            };
+
+            draw_shortcut_row("New", "new", &pending_settings->shortcut_new, &shortcut_new_state_);
+            draw_shortcut_row("Open", "open", &pending_settings->shortcut_open, &shortcut_open_state_);
+            draw_shortcut_row("Save", "save", &pending_settings->shortcut_save, &shortcut_save_state_);
+            draw_shortcut_row("Undo", "undo", &pending_settings->shortcut_undo, &shortcut_undo_state_);
+            draw_shortcut_row("Redo", "redo", &pending_settings->shortcut_redo, &shortcut_redo_state_);
+            draw_shortcut_row("Open Settings", "settings", &pending_settings->shortcut_settings, &shortcut_settings_state_);
+            draw_shortcut_row("About", "about", &pending_settings->shortcut_about, &shortcut_about_state_);
+            draw_shortcut_row("Create Sketch", "create_sketch", &pending_settings->shortcut_create_sketch, &shortcut_create_sketch_state_);
+            draw_shortcut_row("Finish Sketch", "finish_sketch", &pending_settings->shortcut_finish_sketch, &shortcut_finish_sketch_state_);
+            draw_shortcut_row("Extrude", "extrude", &pending_settings->shortcut_extrude, &shortcut_extrude_state_);
+            draw_shortcut_row("Revolve", "revolve", &pending_settings->shortcut_revolve, &shortcut_revolve_state_);
+            draw_shortcut_row("Line", "line", &pending_settings->shortcut_line, &shortcut_line_state_);
+            draw_shortcut_row("Rectangle", "rectangle", &pending_settings->shortcut_rectangle, &shortcut_rectangle_state_);
+            draw_shortcut_row("Circle", "circle", &pending_settings->shortcut_circle, &shortcut_circle_state_);
+
+            ImGui::EndTable();
+        }
+        ImGui::TextWrapped("Click a shortcut button, press the key combination, then release to assign. Press Esc to cancel capture.");
     }
     ImGui::EndChild();
 
