@@ -1,9 +1,12 @@
-# MTCAD
+# MTCAD  
+
+![Alt text](images/MTCAD-Preview.png)
+
 
 Modular CAD architecture with:
 
-- `kernel`: C geometric kernel, built as a shared library (`mtcad_kernel.dll` on Windows) using libuv as core library
-- `gui`: C++ desktop frontend (`mtcad_gui.exe`) using ImGui + Vulkan + SDL3 + STB
+- `kernel`: C geometric kernel, built as a shared library (`mtkernel.dll` on Windows) using libuv as core library
+- `gui`: C++ desktop frontend (`mtcad.exe`) using ImGui + Vulkan + SDL3 + STB
 
 ## Why this split
 
@@ -41,4 +44,4 @@ MTCAD/
   
 Follow the build instructions for Fedora if you are using Red Hat Enterprise, CentOS, openSUSE, SUSE Linux Enterprise, AlmaLinux, Oracle Linux, Mageia, OpenMandriva Lx or others that use the .rpm package manager.  
 
-Follow the build instructions for Debian if you are using Ubuntu, Linux Mint or others that use the .deb package format
+Follow the build instructions for Debian if you are using Ubuntu, Linux Mint or others that use the .deb package format  

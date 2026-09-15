@@ -13,7 +13,7 @@ mtkernel_version mtkernel_get_version(void) {
     return version;
 }
 
-double mtcad_kernel_rectangle_area(double width, double height) {
+double mtkernel_rectangle_area(double width, double height) {
     if (width < 0.0 || height < 0.0) {
         return -1.0;
     }
@@ -33,8 +33,8 @@ static double NormalizeOperationScale(int operation) {
     }
 }
 
-static mtcad_kernel_extrude_body_result EvaluateBody(const mtcad_kernel_extrude_body_input* input) {
-    mtcad_kernel_extrude_body_result result;
+static mtkernel_extrude_body_result EvaluateBody(const mtkernel_extrude_body_input* input) {
+    mtkernel_extrude_body_result result;
     memset(&result, 0, sizeof(result));
     result.body_id = input->body_id;
     result.status = 0;
@@ -64,26 +64,26 @@ static mtcad_kernel_extrude_body_result EvaluateBody(const mtcad_kernel_extrude_
 }
 
 typedef struct worker_param {
-    const mtcad_kernel_extrude_body_input* inputs;
-    mtcad_kernel_extrude_body_result* outputs;
+    const mtkernel_extrude_body_input* inputs;
+    mtkernel_extrude_body_result* outputs;
     size_t begin;
     size_t end;
 } worker_param;
 
 static void worker_thread_func(void* vparam) {
     worker_param* p = (worker_param*)vparam;
-    const mtcad_kernel_extrude_body_input* inputs = p->inputs;
-    mtcad_kernel_extrude_body_result* outputs = p->outputs;
+    const mtkernel_extrude_body_input* inputs = p->inputs;
+    mtkernel_extrude_body_result* outputs = p->outputs;
     for (size_t i = p->begin; i < p->end; ++i) {
         outputs[i] = EvaluateBody(&inputs[i]);
     }
     free(p);
 }
 
-size_t mtcad_kernel_extrude_cut_parallel(
-    const mtcad_kernel_extrude_body_input* inputs,
+size_t mtkernel_extrude_cut_parallel(
+    const mtkernel_extrude_body_input* inputs,
     size_t input_count,
-    mtcad_kernel_extrude_body_result* outputs,
+    mtkernel_extrude_body_result* outputs,
     size_t output_capacity,
     unsigned worker_count)
 {

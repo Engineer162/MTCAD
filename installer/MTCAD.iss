@@ -1,6 +1,6 @@
 [Setup]
 AppName=MTCAD
-AppVersion=0.3.2
+AppVersion=0.4.0
 DefaultDirName={autopf}\MTCAD
 DefaultGroupName=MTCAD
 OutputBaseFilename=MTCAD_Setup
@@ -17,8 +17,8 @@ UninstallDisplayIcon={app}\resources\mtcad.ico
 
 
 [Files]
-Source: "..\release\mtcad_gui.exe"; DestDir: "{app}"
-Source: "..\release\mtcad_kernel.dll"; DestDir: "{app}"
+Source: "..\release\mtcad.exe"; DestDir: "{app}"
+Source: "..\release\mtkernel.dll"; DestDir: "{app}"
 Source: "..\release\uv.dll"; DestDir: "{app}"
 
 Source: "..\release\assets\*"; DestDir: "{app}\assets"; Flags: recursesubdirs
@@ -33,6 +33,6 @@ Source: "resources\default_imgui.ini"; \
 
 
 [Icons]
-Name: "{group}\MTCAD"; Filename: "{app}\mtcad_gui.exe"; IconFilename: "{app}\resources\mtcad.ico"
+Name: "{group}\MTCAD"; Filename: "{app}\mtcad.exe"; IconFilename: "{app}\resources\mtcad.ico"
 
-Name: "{commondesktop}\MTCAD"; Filename: "{app}\mtcad_gui.exe"; IconFilename: "{app}\resources\mtcad.ico"
+Name: "{commondesktop}\MTCAD"; Filename: "{app}\mtcad.exe"; IconFilename: "{app}\resources\mtcad.ico"

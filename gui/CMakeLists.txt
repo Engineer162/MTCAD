@@ -28,7 +28,7 @@ target_link_libraries(mtcad_imgui
         ${MTCAD_SDL3_TARGET}
 )
 
-add_executable(mtcad_gui
+add_executable(mtcad
     src/main.cpp
     src/version.cpp
     src/runtime/settings_io.cpp
@@ -52,26 +52,26 @@ add_executable(mtcad_gui
     src/windows/about_window.cpp
 )
 
-target_compile_definitions(mtcad_gui
+target_compile_definitions(mtcad
     PRIVATE
-        MTCAD_KERNEL_USE_DLL
+        MTKERNEL_USE_DLL
 )
 
-target_include_directories(mtcad_gui
+target_include_directories(mtcad
     PRIVATE
         ${CMAKE_SOURCE_DIR}/third_party/stb
 )
 
-target_link_libraries(mtcad_gui
+target_link_libraries(mtcad
     PRIVATE
-        mtcad_kernel
+        mtkernel
         mtcad_imgui
         Vulkan::Vulkan
         ${MTCAD_SDL3_TARGET}
 )
 
-set_target_properties(mtcad_gui PROPERTIES
-    OUTPUT_NAME mtcad_gui
+set_target_properties(mtcad PROPERTIES
+    OUTPUT_NAME mtcad
     INSTALL_RPATH "$ORIGIN"
     INSTALL_RPATH_USE_LINK_RPATH TRUE
 )
@@ -91,18 +91,18 @@ endif()
 set(MTCAD_RELEASE_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/${MTCAD_OUTPUT_CONFIG}")
 set(MTCAD_RELEASE_ASSETS_DIR "${MTCAD_RELEASE_OUTPUT_DIR}/assets")
 
-add_custom_command(TARGET mtcad_gui POST_BUILD
+add_custom_command(TARGET mtcad POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${MTCAD_RELEASE_OUTPUT_DIR}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${MTCAD_RELEASE_ASSETS_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:mtcad_gui>" "${MTCAD_RELEASE_OUTPUT_DIR}/"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:mtcad_kernel>" "${MTCAD_RELEASE_OUTPUT_DIR}/"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:mtcad>" "${MTCAD_RELEASE_OUTPUT_DIR}/"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:mtkernel>" "${MTCAD_RELEASE_OUTPUT_DIR}/"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/gui/assets" "${MTCAD_RELEASE_ASSETS_DIR}"
     VERBATIM
 )
 
 if(WIN32)
-    add_custom_command(TARGET mtcad_gui POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:mtcad_gui> "${MTCAD_RELEASE_OUTPUT_DIR}/"
+    add_custom_command(TARGET mtcad POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:mtcad> "${MTCAD_RELEASE_OUTPUT_DIR}/"
         COMMAND_EXPAND_LISTS
         VERBATIM
     )

@@ -21,28 +21,28 @@ extern "C" {
     #define MTCAD_KERNEL_API
 #endif
 
-typedef struct mtcad_kernel_extrude_body_input {
+typedef struct mtkernel_extrude_body_input {
     int body_id;
     double profile_area;
     double depth;
     double taper_angle_degrees;
     int operation;
-} mtcad_kernel_extrude_body_input;
+} mtkernel_extrude_body_input;
 
-typedef struct mtcad_kernel_extrude_body_result {
+typedef struct mtkernel_extrude_body_result {
     int body_id;
     double estimated_volume_delta;
     double estimated_surface_work;
     double effective_depth;
     int status;
-} mtcad_kernel_extrude_body_result;
+} mtkernel_extrude_body_result;
 
 MTCAD_KERNEL_API mtkernel_version mtkernel_get_version(void);
-MTCAD_KERNEL_API double mtcad_kernel_rectangle_area(double width, double height);
-MTCAD_KERNEL_API size_t mtcad_kernel_extrude_cut_parallel(
-    const mtcad_kernel_extrude_body_input* inputs,
+MTCAD_KERNEL_API double mtkernel_rectangle_area(double width, double height);
+MTCAD_KERNEL_API size_t mtkernel_extrude_cut_parallel(
+    const mtkernel_extrude_body_input* inputs,
     size_t input_count,
-    mtcad_kernel_extrude_body_result* outputs,
+    mtkernel_extrude_body_result* outputs,
     size_t output_capacity,
     unsigned worker_count);
 

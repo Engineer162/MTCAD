@@ -1,6 +1,6 @@
 #include "extrude_window.h"
 
-#include "mtcad/kernel.h"
+#include "mtkernel/kernel.h"
 
 #include <algorithm>
 #include <thread>
@@ -128,7 +128,7 @@ void ExtrudePaletteWindow::StartKernelJob() {
 
     std::thread([this, state, settings]() {
         try {
-            std::vector<mtcad_kernel_extrude_body_input> inputs(source_profile_polygons_world_points_.size());
+            std::vector<mtkernel_extrude_body_input> inputs(source_profile_polygons_world_points_.size());
             if (inputs.empty()) {
                 std::lock_guard<std::mutex> lock(job_state_mutex_);
                 if (job_state_ == state) {
@@ -139,7 +139,7 @@ void ExtrudePaletteWindow::StartKernelJob() {
                 return;
             }
 
-            std::vector<mtcad_kernel_extrude_body_result> results(inputs.size());
+            std::vector<mtkernel_extrude_body_result> results(inputs.size());
 
             auto profile_area = [](const std::vector<ExtrudePoint3D>& poly) {
                 if (poly.size() < 3) {
@@ -162,7 +162,7 @@ void ExtrudePaletteWindow::StartKernelJob() {
                 inputs[i].operation = settings.operation;
             }
 
-            const size_t processed = mtcad_kernel_extrude_cut_parallel(
+            const size_t processed = mtkernel_extrude_cut_parallel(
                 inputs.data(),
                 inputs.size(),
                 results.data(),

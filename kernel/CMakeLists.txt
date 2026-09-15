@@ -5,25 +5,25 @@ configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mtkernel/version.h
 )
 
-add_library(mtcad_kernel SHARED
+add_library(mtkernel SHARED
     src/kernel.c
     src/mt_thread.c
 )
 
-target_include_directories(mtcad_kernel
+target_include_directories(mtkernel
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_compile_definitions(mtcad_kernel
+target_compile_definitions(mtkernel
     PRIVATE
         MTCAD_KERNEL_BUILD_DLL
     _POSIX_C_SOURCE=200809L
 )
 
-set_target_properties(mtcad_kernel PROPERTIES
-    OUTPUT_NAME mtcad_kernel
+set_target_properties(mtkernel PROPERTIES
+    OUTPUT_NAME mtkernel
 )
 
 # Use libuv for cross-platform threading.
-target_link_libraries(mtcad_kernel PRIVATE uv)
+target_link_libraries(mtkernel PRIVATE uv)

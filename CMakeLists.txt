@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(MTCAD VERSION 0.3.2 LANGUAGES C CXX)
+project(MTCAD VERSION 0.4.0 LANGUAGES C CXX)
 
-option(MTCAD_BUILD_GUI "Build the desktop ImGui GUI" ON)
+option(MTCAD_BUILD "Build the desktop ImGui GUI" ON)
 
 include(GNUInstallDirs)
 
@@ -53,11 +53,11 @@ endif()
 
 add_subdirectory(kernel)
 
-if(MTCAD_BUILD_GUI)
+if(MTCAD_BUILD)
     add_subdirectory(gui)
 endif()
 
-install(TARGETS mtcad_kernel
+install(TARGETS mtkernel
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
@@ -67,8 +67,8 @@ install(TARGETS uv
     RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
-if(MTCAD_BUILD_GUI)
-    install(TARGETS mtcad_gui
+if(MTCAD_BUILD)
+    install(TARGETS mtcad
         RUNTIME DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/mtcad
     )
 
