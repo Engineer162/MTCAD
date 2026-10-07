@@ -101,6 +101,8 @@ bool LoadUserSettingsIni(const char* file_path, UserSettings* out_settings) {
         try {
             if (key == "text_scale") {
                 loaded.text_scale = std::stof(value);
+            } else if (key == "use_icons_in_navbar") {
+                loaded.use_icons_in_navbar = (std::stoi(value) != 0);
             } else if (key == "icon_scale") {
                 loaded.icon_scale = std::stof(value);
             } else if (key == "theme_index") {
@@ -193,6 +195,7 @@ bool SaveUserSettingsIni(const char* file_path, const UserSettings& settings) {
 
     out << "[MTCAD]\n";
     out << "text_scale=" << settings.text_scale << "\n";
+    out << "use_icons_in_navbar=" << (settings.use_icons_in_navbar ? 1 : 0) << "\n";
     out << "icon_scale=" << settings.icon_scale << "\n";
     out << "theme_index=" << clamp_theme_index(settings.theme_index) << "\n";
     out << "viewport_pan_button=" << settings.viewport_pan_button << "\n";

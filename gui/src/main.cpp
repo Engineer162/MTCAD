@@ -362,6 +362,7 @@ int main() {
 
     float ui_text_scale = applied_settings.text_scale;
     float ui_icon_scale = applied_settings.icon_scale;
+    bool use_icons_in_navbar = applied_settings.use_icons_in_navbar;
     viewport_window.SetPanButton(pan_button_from_index(applied_settings.viewport_pan_button));
     viewport_window.SetOrbitButton(orbit_button_from_index(applied_settings.viewport_orbit_button));
     apply_loaded_icon_textures();
@@ -694,7 +695,7 @@ int main() {
             const bool has_file_icon = file_icon.loaded && file_icon.texture.descriptor_set != VK_NULL_HANDLE;
             bool open_file_popup = trigger_new_action || trigger_open_action || trigger_save_action;
 
-            if (has_file_icon) {
+            if (has_file_icon && use_icons_in_navbar) {
                 if (render_dropdown_icon_button("##file_icon", (ImTextureID)file_icon.texture.descriptor_set, file_icon_size, "File")) {
                     open_file_popup = true;
                 }
@@ -746,7 +747,7 @@ int main() {
             const bool has_panel_icon = panel_icon.loaded && panel_icon.texture.descriptor_set != VK_NULL_HANDLE;
             bool open_panel_popup = false;
 
-            if (has_panel_icon) {
+            if (has_panel_icon && use_icons_in_navbar) {
                 if (render_dropdown_icon_button("##panel_icon", (ImTextureID)panel_icon.texture.descriptor_set, panel_icon_size, "Panel")) {
                     open_panel_popup = true;
                 }
@@ -800,7 +801,7 @@ int main() {
             const IconSlot& save_icon = icon_slot(AppIcon::Save);
             const bool has_save_icon = save_icon.loaded && save_icon.texture.descriptor_set != VK_NULL_HANDLE;
 
-            if (has_save_icon) {
+            if (has_save_icon && use_icons_in_navbar) {
                 if (render_icon_button("##save_icon", (ImTextureID)save_icon.texture.descriptor_set, save_icon_size, button_padding, "Save")) {
                     // Do save stuff here
                 }
@@ -829,7 +830,7 @@ int main() {
             const bool has_Undo_icon = Undo_icon.loaded && Undo_icon.texture.descriptor_set != VK_NULL_HANDLE;
             bool open_undo_popup = false;
 
-            if (has_Undo_icon) {
+            if (has_Undo_icon && use_icons_in_navbar) {
                 if (render_dropdown_icon_button("##undo_icon", (ImTextureID)Undo_icon.texture.descriptor_set, undo_icon_size, "Undo")) {
                     open_undo_popup = true;
                 }
@@ -875,7 +876,7 @@ int main() {
             const bool has_redo_icon = redo_icon.loaded && redo_icon.texture.descriptor_set != VK_NULL_HANDLE;
             bool open_redo_popup = false;
 
-            if (has_redo_icon) {
+            if (has_redo_icon && use_icons_in_navbar) {
                 if (render_dropdown_icon_button("##redo_icon", (ImTextureID)redo_icon.texture.descriptor_set, redo_icon_size, "Redo")) {
                     open_redo_popup = true;
                 }
@@ -951,7 +952,7 @@ int main() {
             ImGui::SetCursorPosX(help_x);
 
             // Help button
-            if (has_help_icon) {
+            if (has_help_icon && use_icons_in_navbar) {
                 if (render_dropdown_icon_button("##help_icon", (ImTextureID)help_icon.texture.descriptor_set, help_icon_size, "Help")) {
                     open_help_popup = true;
                 }
@@ -979,7 +980,7 @@ int main() {
 
             // Settings button
             ImGui::SetCursorPosX(settings_x);
-            if (has_settings_icon) {
+            if (has_settings_icon && use_icons_in_navbar) {
                 if (render_icon_button("##settings_icon", (ImTextureID)settings_icon.texture.descriptor_set, settings_icon_size, button_padding, "Settings")) {
                     show_settings_window = true;
                 }
@@ -1007,6 +1008,7 @@ int main() {
             pending_settings.theme_index = clamp_theme_index(pending_settings.theme_index);
             ui_text_scale = pending_settings.text_scale;
             ui_icon_scale = pending_settings.icon_scale;
+            use_icons_in_navbar = pending_settings.use_icons_in_navbar;
             apply_imgui_theme(pending_settings.theme_index);
 
             bool settings_open = show_settings_window;
@@ -1026,6 +1028,7 @@ int main() {
                 applied_settings = pending_settings;
                 ui_text_scale = applied_settings.text_scale;
                 ui_icon_scale = applied_settings.icon_scale;
+                use_icons_in_navbar = applied_settings.use_icons_in_navbar;
                 apply_imgui_theme(applied_settings.theme_index);
                 viewport_window.SetPanButton(pan_button_from_index(applied_settings.viewport_pan_button));
                 viewport_window.SetOrbitButton(orbit_button_from_index(applied_settings.viewport_orbit_button));
@@ -1044,6 +1047,7 @@ int main() {
                 pending_settings = applied_settings;
                 ui_text_scale = applied_settings.text_scale;
                 ui_icon_scale = applied_settings.icon_scale;
+                use_icons_in_navbar = applied_settings.use_icons_in_navbar;
                 apply_imgui_theme(applied_settings.theme_index);
             }
             show_settings_window = settings_open;

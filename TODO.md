@@ -2,6 +2,7 @@
 *First priority*  
 
 - Add ImViewGizmo to viewport.  
+- Add imgui_toggle to project.  
 - Move 2D and 3D functions from GUI into Kernel.  
 - Predict thread creation.  
 - More modeling tools.  

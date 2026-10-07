@@ -8,6 +8,7 @@
 
 struct UserSettings {
     float text_scale = 1.0f;
+    bool use_icons_in_navbar = true;
     float icon_scale = 1.0f;
     int theme_index = 0;
     int viewport_pan_button = 0;
