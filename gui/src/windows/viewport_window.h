@@ -2,6 +2,9 @@
 #define MTCAD_GUI_WINDOWS_VIEWPORT_WINDOW_H
 
 #include "imgui.h"
+#include "imgui_internal.h"
+#include "ImGuizmo.h"
+
 #include <vector>
 
 class ViewportWindow {
@@ -177,6 +180,7 @@ private:
     std::vector<Vec3> extruded_body_final_polygon_;
     std::vector<std::vector<Vec3>> extruded_body_final_polygons_;
     float extruded_body_final_depth_world_ = 0.0f;
+    bool view_gizmo_active_ = false;
     bool open_ = true;
 };
 

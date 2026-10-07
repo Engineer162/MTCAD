@@ -1,6 +1,10 @@
 find_package(Vulkan REQUIRED)
 
-set(MTCAD_SDL3_TARGET SDL3::SDL3-static)
+if(SDL_STATIC)
+    set(MTCAD_SDL3_TARGET SDL3::SDL3-static)
+else()
+    set(MTCAD_SDL3_TARGET SDL3::SDL3)
+endif()
 
 add_library(mtcad_imgui STATIC
     ${MTCAD_IMGUI_DIR}/imgui.cpp
@@ -9,6 +13,11 @@ add_library(mtcad_imgui STATIC
     ${MTCAD_IMGUI_DIR}/imgui_widgets.cpp
     ${MTCAD_IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
     ${MTCAD_IMGUI_DIR}/backends/imgui_impl_sdl3.cpp
+    ${CMAKE_SOURCE_DIR}/third_party/imguizmo/src/ImGuizmo.cpp
+    ${CMAKE_SOURCE_DIR}/third_party/imgui_toggle/imgui_toggle.cpp
+    ${CMAKE_SOURCE_DIR}/third_party/imgui_toggle/imgui_toggle_palette.cpp
+    #${CMAKE_SOURCE_DIR}/third_party/imgui_toggle/imgui_toggle_presets.cpp # For pre defined looks
+    ${CMAKE_SOURCE_DIR}/third_party/imgui_toggle/imgui_toggle_renderer.cpp
 )
 
 configure_file(
@@ -20,6 +29,8 @@ target_include_directories(mtcad_imgui
     PUBLIC
         ${MTCAD_IMGUI_DIR}
         ${MTCAD_IMGUI_DIR}/backends
+        ${CMAKE_SOURCE_DIR}/third_party/imgui_toggle
+        ${CMAKE_SOURCE_DIR}/third_party/imguizmo/src
 )
 
 target_link_libraries(mtcad_imgui
@@ -60,6 +71,8 @@ target_compile_definitions(mtcad
 target_include_directories(mtcad
     PRIVATE
         ${CMAKE_SOURCE_DIR}/third_party/stb
+        ${CMAKE_SOURCE_DIR}/third_party/imgui_toggle
+        ${CMAKE_SOURCE_DIR}/third_party/imguizmo/src
 )
 
 target_link_libraries(mtcad

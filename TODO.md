@@ -1,8 +1,8 @@
 **TODO**  
 *First priority*  
 
-- Add ImViewGizmo to viewport.  
-- Add imgui_toggle to project.  
+- Add adaptive origin size (stays the same size when zooming in/out).
+- Add a guizmo size option in the settings menu.
 - Move 2D and 3D functions from GUI into Kernel.  
 - Predict thread creation.  
 - More modeling tools.  

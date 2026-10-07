@@ -1,10 +1,12 @@
 #ifndef MTCAD_GUI_WINDOWS_SETTINGS_WINDOW_H
 #define MTCAD_GUI_WINDOWS_SETTINGS_WINDOW_H
 
-#include <string>
-
 #include "../managers/shortcut_manager.h"
+
 #include "imgui.h"
+#include "imgui_toggle.h"
+
+#include <string>
 
 struct UserSettings {
     float text_scale = 1.0f;

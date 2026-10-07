@@ -14,3 +14,9 @@
 [submodule "third_party/stb"]
 	path = third_party/stb
 	url = https://github.com/nothings/stb.git
+[submodule "third_party/imgui_toggle"]
+	path = third_party/imgui_toggle
+	url = https://github.com/cmdwtf/imgui_toggle
+[submodule "third_party/imguizmo"]
+	path = third_party/imguizmo
+	url = https://github.com/CedricGuillemet/ImGuizmo

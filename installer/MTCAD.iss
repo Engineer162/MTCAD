@@ -20,6 +20,7 @@ UninstallDisplayIcon={app}\resources\mtcad.ico
 Source: "..\release\mtcad.exe"; DestDir: "{app}"
 Source: "..\release\mtkernel.dll"; DestDir: "{app}"
 Source: "..\release\uv.dll"; DestDir: "{app}"
+Source: "..\release\SDL3.dll"; DestDir: "{app}"
 
 Source: "..\release\assets\*"; DestDir: "{app}\assets"; Flags: recursesubdirs
 

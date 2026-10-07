@@ -98,7 +98,8 @@ SettingsWindowResult SettingsWindow::Render(bool* open, UserSettings* pending_se
         ImGui::Separator();
         render_theme_combo("Theme", &pending_settings->theme_index);
         ImGui::SliderFloat("UI Text Scale", &pending_settings->text_scale, 0.80f, 2.00f, "%.2fx");
-        ImGui::Checkbox("Use Icons in Navbar", &pending_settings->use_icons_in_navbar);
+        //ImGui::Checkbox("Use Icons in Navbar", &pending_settings->use_icons_in_navbar);
+        ImGui::Toggle("Use Icons in Navbar", &pending_settings->use_icons_in_navbar, ImGuiToggleFlags_Animated | ImGuiToggleFlags_A11y);
         ImGui::SliderFloat("UI Icon Scale", &pending_settings->icon_scale, 0.80f, 2.00f, "%.2fx");
         if (ImGui::Button("Reset UI Scale")) {
             pending_settings->text_scale = 1.0f;

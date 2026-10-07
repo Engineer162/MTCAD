@@ -26,8 +26,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Vulkan REQUIRED)
 
-set(SDL_SHARED OFF CACHE BOOL "Build shared library" FORCE)
-set(SDL_STATIC ON CACHE BOOL "Build static library" FORCE)
+set(SDL_SHARED ON CACHE BOOL "Build shared library" FORCE)
+set(SDL_STATIC OFF CACHE BOOL "Build static library" FORCE)
 
 add_subdirectory(third_party/SDL)
 set(CMAKE_SKIP_INSTALL_RULES ON)
@@ -63,6 +63,11 @@ install(TARGETS mtkernel
 )
 
 install(TARGETS uv
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+install(TARGETS SDL3-shared
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
@@ -105,6 +110,10 @@ add_custom_target(appdir
         ${APPDIR}/usr/${CMAKE_INSTALL_LIBDIR}/$<TARGET_FILE_NAME:uv>
 
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:SDL3-shared>
+        ${APPDIR}/usr/${CMAKE_INSTALL_LIBDIR}/$<TARGET_FILE_NAME:SDL3-shared>
+
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
         ${CMAKE_SOURCE_DIR}/installer/AppRun.sh
         ${APPDIR}/AppRun
 
@@ -124,10 +133,15 @@ if(NOT WIN32)
         COMMAND ${CMAKE_COMMAND} -E create_symlink
             $<TARGET_FILE_NAME:uv>
             ${APPDIR}/usr/${CMAKE_INSTALL_LIBDIR}/$<TARGET_SONAME_FILE_NAME:uv>
+
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+            $<TARGET_FILE_NAME:SDL3-shared>
+            ${APPDIR}/usr/${CMAKE_INSTALL_LIBDIR}/$<TARGET_SONAME_FILE_NAME:SDL3-shared>
     )
 endif()
 
     add_dependencies(appdir uv)
+    add_dependencies(appdir SDL3-shared)
 
 add_custom_target(appimage
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/dist

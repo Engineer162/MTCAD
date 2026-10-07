@@ -3,6 +3,7 @@
 #include "../managers/icon_manager.h"
 
 #include <cmath>
+#include <cstring>
 #include <cstdio>
 #include <array>
 #include <map>
@@ -551,6 +552,21 @@ static void DrawExtrudedBodyPreview(ImDrawList* draw_list, const std::vector<Vie
     outlines.reserve(base_screen.size() * 2 + base_screen.size() * 2);
 
     // Side walls are convex quads, so keep each wall as a single face.
+    auto polygon_normal = [&](const std::vector<ViewportWindow::Vec3>& poly) {
+        ViewportWindow::Vec3 normal = {0.0f, 0.0f, 0.0f};
+        for (size_t i = 0; i < poly.size(); ++i) {
+            const ViewportWindow::Vec3& curr = poly[i];
+            const ViewportWindow::Vec3& next = poly[(i + 1) % poly.size()];
+            normal.x += (curr.y - next.y) * (curr.z + next.z);
+            normal.y += (curr.z - next.z) * (curr.x + next.x);
+            normal.z += (curr.x - next.x) * (curr.y + next.y);
+        }
+        return normal;
+    };
+
+    const ViewportWindow::Vec3 extrusion_axis = Normalize(Sub(offset_polygon[0], polygon[0]));
+    const float winding_sign = Dot(polygon_normal(polygon), extrusion_axis) >= 0.0f ? 1.0f : -1.0f;
+
     for (size_t i = 0; i < base_screen.size(); ++i) {
         const size_t j = (i + 1) % base_screen.size();
         const ViewportWindow::Vec3& wa = polygon[i];
@@ -563,8 +579,13 @@ static void DrawExtrudedBodyPreview(ImDrawList* draw_list, const std::vector<Vie
             (wa.y + wb.y + wc.y + wd.y) * 0.25f,
             (wa.z + wb.z + wc.z + wd.z) * 0.25f
         };
-        const ViewportWindow::Vec3 side_normal = Cross(Sub(wb, wa), Sub(wd, wa));
-        const bool side_visible = Dot(side_normal, Sub(camera_pos, side_centroid)) < 0.0f;
+        const ViewportWindow::Vec3 side_normal = Mul(Cross(Sub(wb, wa), extrusion_axis), winding_sign);
+        const bool side_visible = Dot(side_normal, Sub(camera_pos, side_centroid)) > 0.0f;
+
+        // If we arent in solid render mode, draw all walls regardless of visibility.
+        if (solid_render && !side_visible) {
+            continue;
+        }
 
         faces.push_back({
             {base_screen[i], base_screen[j], offset_screen[j], offset_screen[i]},
@@ -580,18 +601,6 @@ static void DrawExtrudedBodyPreview(ImDrawList* draw_list, const std::vector<Vie
             });
         }
     }
-
-    auto polygon_normal = [&](const std::vector<ViewportWindow::Vec3>& poly) {
-        ViewportWindow::Vec3 normal = {0.0f, 0.0f, 0.0f};
-        for (size_t i = 0; i < poly.size(); ++i) {
-            const ViewportWindow::Vec3& curr = poly[i];
-            const ViewportWindow::Vec3& next = poly[(i + 1) % poly.size()];
-            normal.x += (curr.y - next.y) * (curr.z + next.z);
-            normal.y += (curr.z - next.z) * (curr.x + next.x);
-            normal.z += (curr.x - next.x) * (curr.y + next.y);
-        }
-        return normal;
-    };
 
     ViewportWindow::Vec3 top_centroid = {0.0f, 0.0f, 0.0f};
     for (const auto& point : polygon) {
@@ -1170,6 +1179,21 @@ void ViewportWindow::DrawAdaptiveSketchGrid(ImDrawList* draw_list, const ImVec2&
             draw_line_segment({center.x - half_extent, 0.0f, z}, {center.x + half_extent, 0.0f, z}, is_major ? major_color : minor_color, is_major ? 1.3f : 1.0f);
         }
     }
+
+    const ImU32 x_axis_color = IM_COL32(220, 90, 90, 120);
+    const ImU32 y_axis_color = IM_COL32(90, 210, 120, 120);
+    const ImU32 z_axis_color = IM_COL32(100, 170, 230, 120);
+    const float axis_thickness = 1.6f;
+    if (active_sketch_plane_ == SketchPlane_XY) {
+        draw_line_segment({center.x - half_extent, 0.0f, 0.0f}, {center.x + half_extent, 0.0f, 0.0f}, x_axis_color, axis_thickness);
+        draw_line_segment({0.0f, center.y - half_extent, 0.0f}, {0.0f, center.y + half_extent, 0.0f}, y_axis_color, axis_thickness);
+    } else if (active_sketch_plane_ == SketchPlane_YZ) {
+        draw_line_segment({0.0f, center.y - half_extent, 0.0f}, {0.0f, center.y + half_extent, 0.0f}, y_axis_color, axis_thickness);
+        draw_line_segment({0.0f, 0.0f, center.z - half_extent}, {0.0f, 0.0f, center.z + half_extent}, z_axis_color, axis_thickness);
+    } else if (active_sketch_plane_ == SketchPlane_XZ) {
+        draw_line_segment({center.x - half_extent, 0.0f, 0.0f}, {center.x + half_extent, 0.0f, 0.0f}, x_axis_color, axis_thickness);
+        draw_line_segment({0.0f, 0.0f, center.z - half_extent}, {0.0f, 0.0f, center.z + half_extent}, z_axis_color, axis_thickness);
+    }
 }
 
 bool ViewportWindow::GetCanvasRect(ImVec2* out_pos, ImVec2* out_size) const {
@@ -1186,7 +1210,7 @@ ViewportWindow::Vec3 ViewportWindow::CameraPosition() const {
     const float sp = std::sin(pitch_);
     const float cy = std::cos(yaw_);
     const float sy = std::sin(yaw_);
-    const Vec3 offset = {distance_ * cp * cy, distance_ * cp * sy, distance_ * sp};
+    const Vec3 offset = {distance_ * cp * cy, distance_ * sp, distance_ * cp * sy};
     return Add(target_, offset);
 }
 
@@ -1196,7 +1220,7 @@ ViewportWindow::Vec3 ViewportWindow::CameraForward() const {
 
 ViewportWindow::Vec3 ViewportWindow::CameraRight() const {
     const Vec3 forward = CameraForward();
-    Vec3 right = Cross(forward, {0.0f, 0.0f, 1.0f});
+    Vec3 right = Cross(forward, {0.0f, 1.0f, 0.0f});
     if (Dot(right, right) < 1e-8f) {
         right = {1.0f, 0.0f, 0.0f};
     }
@@ -1446,16 +1470,16 @@ bool ViewportWindow::ProjectQuadToScreen(
 void ViewportWindow::AlignCameraToSketchPlane(SketchPlane plane) {
     switch (plane) {
         case SketchPlane_XY:
-            yaw_ = 0.0f;
-            pitch_ = kHalfPi;
+            yaw_ = kHalfPi;
+            pitch_ = 0.0f;
             break;
         case SketchPlane_YZ:
-            yaw_ = 0.0f;
+            yaw_ = Pi;
             pitch_ = 0.0f;
             break;
         case SketchPlane_XZ:
-            yaw_ = 1.5707963f;
-            pitch_ = 0.0f;
+            yaw_ = kHalfPi;
+            pitch_ = kHalfPi;
             break;
         case SketchPlane_None:
         default:
@@ -1476,6 +1500,8 @@ void ViewportWindow::Render(const ImGuiIO& io) {
 
     const double info_hold_seconds = 3.0;
     const double info_fade_seconds = 0.75;
+
+    ImGuizmo::BeginFrame();
 
     ImGuiWindowFlags viewport_flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
     bool open_state = open_;
@@ -1502,9 +1528,20 @@ void ViewportWindow::Render(const ImGuiIO& io) {
         canvas_size.y = 64.0f;
     }
 
+    constexpr float kGizmoSize = 128.0f;
+    constexpr float kGizmoMargin = 12.0f;
+    const ImVec2 gizmo_pos(canvas_pos.x + canvas_size.x - kGizmoSize - kGizmoMargin, canvas_pos.y + kGizmoMargin);
+    const bool mouse_over_gizmo =
+        io.MousePos.x >= gizmo_pos.x && io.MousePos.x <= gizmo_pos.x + kGizmoSize &&
+        io.MousePos.y >= gizmo_pos.y && io.MousePos.y <= gizmo_pos.y + kGizmoSize;
+
     ImGuiButtonFlags viewport_button_flags = ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonMiddle | ImGuiButtonFlags_MouseButtonRight;
     ImGui::InvisibleButton("viewport_canvas", canvas_size, viewport_button_flags);
-    const bool hovered = ImGui::IsItemHovered();
+    // ImGuizmo only starts a drag when no item is active.
+    if (mouse_over_gizmo && ImGui::GetActiveID() == ImGui::GetItemID()) {
+        ImGui::ClearActiveID();
+    }
+    const bool hovered = ImGui::IsItemHovered() && !mouse_over_gizmo && !view_gizmo_active_;
     if (hovered) {
         if (io.MouseWheel != 0.0f) {
             distance_ *= std::exp(-io.MouseWheel * 0.12f);
@@ -1518,7 +1555,7 @@ void ViewportWindow::Render(const ImGuiIO& io) {
         }
 
         if (ImGui::IsMouseDragging(orbit_button_)) {
-            yaw_ -= io.MouseDelta.x * 0.01f;
+            yaw_ += io.MouseDelta.x * 0.01f;
             pitch_ += io.MouseDelta.y * 0.01f;
             if (pitch_ > kHalfPi) {
                 pitch_ = kHalfPi;
@@ -1550,18 +1587,18 @@ void ViewportWindow::Render(const ImGuiIO& io) {
             const ImU32 color = (i % 5 == 0) ? IM_COL32(68, 74, 86, 255) : IM_COL32(46, 52, 64, 255);
             DrawLine3D(
                 draw_list,
-                {-half_lines, p, 0.0f},
-                {half_lines, p, 0.0f},
-                color,
+                {-half_lines, 0.0f, p},
+                {half_lines, 0.0f, p},
+                i == 0 ? IM_COL32(220, 90, 90, 120) : color,
                 1.0f,
                 canvas_pos,
                 canvas_size
             );
             DrawLine3D(
                 draw_list,
-                {p, -half_lines, 0.0f},
-                {p, half_lines, 0.0f},
-                color,
+                {p, 0.0f, -half_lines},
+                {p, 0.0f, half_lines},
+                i == 0 ? IM_COL32(100, 170, 230, 120) : color,
                 1.0f,
                 canvas_pos,
                 canvas_size
@@ -2405,7 +2442,7 @@ void ViewportWindow::Render(const ImGuiIO& io) {
         if (snap_target.valid && ProjectToScreen(snap_target.world, canvas_pos, canvas_size, crosshair_screen) && crosshair_enabled_) {
             const ImU32 crosshair_color = IM_COL32(100, 200, 255, 220);
             // Draw a square only when snapping to a geometry vertex (endpoint).
-            // Do NOT show the square when gliding on a segment interior, insteadshow
+            // Do NOT show the square when gliding on a segment interior, instead show
             // the regular crosshair in that case to avoid misleading the user.
             const bool is_endpoint_snap = snap_target.snapped_to_geometry && !snap_target.snapped_to_segment_interior;
             if (is_endpoint_snap) {
@@ -2760,9 +2797,9 @@ void ViewportWindow::Render(const ImGuiIO& io) {
     }
 
     if (show_axes_) {
-        DrawLine3D(draw_list, {-8.0f, 0.0f, 0.0f}, {8.0f, 0.0f, 0.0f}, IM_COL32(220, 90, 90, 255), 2.5f, canvas_pos, canvas_size);
-        DrawLine3D(draw_list, {0.0f, -8.0f, 0.0f}, {0.0f, 8.0f, 0.0f}, IM_COL32(90, 210, 120, 255), 2.5f, canvas_pos, canvas_size);
-        DrawLine3D(draw_list, {0.0f, 0.0f, -8.0f}, {0.0f, 0.0f, 8.0f}, IM_COL32(100, 170, 230, 255), 2.5f, canvas_pos, canvas_size);
+        DrawLine3D(draw_list, {0.0f, 0.0f, 0.0f}, {plane_max, 0.0f, 0.0f}, IM_COL32(220, 90, 90, 255), 2.5f, canvas_pos, canvas_size);
+        DrawLine3D(draw_list, {0.0f, 0.0f, 0.0f}, {0.0f, plane_max, 0.0f}, IM_COL32(90, 210, 120, 255), 2.5f, canvas_pos, canvas_size);
+        DrawLine3D(draw_list, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, plane_max}, IM_COL32(100, 170, 230, 255), 2.5f, canvas_pos, canvas_size);
     }
 
     const double seconds_since_scroll = ImGui::GetTime() - info_last_scroll_time_;
@@ -2824,6 +2861,108 @@ void ViewportWindow::Render(const ImGuiIO& io) {
             5.0f
         );
         draw_list->AddText(pick_pos, IM_COL32(255, 230, 205, 255), pick_text);
+    }
+
+    {
+        const Vec3 gx = CameraRight();
+        const Vec3 gy = CameraUp();
+        const Vec3 gz = Mul(CameraForward(), -1.0f);
+        const Vec3 ge = CameraPosition();
+
+        float view[16] = {
+            gx.x, gy.x, gz.x, 0.0f,
+            gx.y, gy.y, gz.y, 0.0f,
+            gx.z, gy.z, gz.z, 0.0f,
+            -Dot(gx, ge), -Dot(gy, ge), -Dot(gz, ge), 1.0f
+        };
+
+        const float near_plane = 0.1f;
+        const float far_plane = 1000.0f;
+        const float f = 1.0f / std::tan(55.0f * (Pi / 180.0f) * 0.5f);
+        const float aspect = canvas_size.y > 0.0f ? canvas_size.x / canvas_size.y : 1.0f;
+        const float projection[16] = {
+            f / aspect, 0.0f, 0.0f, 0.0f,
+            0.0f, f, 0.0f, 0.0f,
+            0.0f, 0.0f, (far_plane + near_plane) / (near_plane - far_plane), -1.0f,
+            0.0f, 0.0f, 2.0f * far_plane * near_plane / (near_plane - far_plane), 0.0f
+        };
+        float model[16] = {
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+        };
+        float view_before[16];
+        std::memcpy(view_before, view, sizeof(view));
+
+        ImGuizmo::SetDrawlist(draw_list);
+        ImGuizmo::SetRect(canvas_pos.x, canvas_pos.y, canvas_size.x, canvas_size.y);
+
+        ImGuizmo::ViewManipulate(view, projection, ImGuizmo::TRANSLATE, ImGuizmo::WORLD, model, distance_, gizmo_pos, ImVec2(kGizmoSize, kGizmoSize), IM_COL32(20, 24, 32, 140));
+
+        view_gizmo_active_ = ImGuizmo::IsUsingViewManipulate();
+
+        if (std::memcmp(view_before, view, sizeof(view)) != 0) {
+            const float dx = view[2];
+            const float dy = view[6];
+            const float dz = view[10];
+            pitch_ = std::asin((std::max)(-1.0f, (std::min)(1.0f, dy)));
+            if (std::sqrt(dx * dx + dz * dz) > 1e-4f) {
+                yaw_ = std::atan2(dz, dx);
+            }
+        }
+
+        const Vec3 vx = {view[0], view[4], view[8]};
+        const Vec3 vy = {view[1], view[5], view[9]};
+        const Vec3 vz = {view[2], view[6], view[10]};
+        const float cube_focal = 1.0f / std::tan(std::acos(3.0f / std::sqrt(12.0f)) / std::sqrt(2.0f));
+
+        struct FaceLabel {
+            const char* text;
+            Vec3 world_normal;
+            Vec3 world_up;
+        };
+
+        const FaceLabel face_labels[6] = {
+            {"Right", {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+            {"Left", {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+            {"Back", {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f, 0.0f}},
+            {"Front", {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}},
+            {"Top", {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}},
+            {"Bottom", {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+        };
+
+        auto project_cube_point = [&](const Vec3& p) {
+            const float depth = 3.0f - Dot(vz, p);
+            return ImVec2(
+                gizmo_pos.x + (0.5f + Dot(vx, p) * cube_focal / depth * 0.5f) * kGizmoSize,
+                gizmo_pos.y + (0.5f - Dot(vy, p) * cube_focal / depth * 0.5f) * kGizmoSize);
+        };
+
+        const ImVec2 gizmo_center(gizmo_pos.x + kGizmoSize * 0.5f, gizmo_pos.y + kGizmoSize * 0.5f);
+        // Longest text spans 80% of a face edge (the cube is 1 unit wide).
+        const float text_scale = 0.8f / ImGui::CalcTextSize("Bottom").x;
+
+        for (const FaceLabel& label : face_labels) {
+            const Vec3 n = label.world_normal;
+            if (Dot(vz, n) < 0.1f) {
+                continue;
+            }
+
+            const Vec3 up = label.world_up;
+            const Vec3 right = Cross(up, n);
+            const Vec3 face_center = Mul(n, 0.5f);
+
+            const ImVec2 text_size = ImGui::CalcTextSize(label.text);
+            const int vtx_begin = draw_list->VtxBuffer.Size;
+            draw_list->AddText(ImVec2(gizmo_center.x - text_size.x * 0.5f, gizmo_center.y - text_size.y * 0.5f), IM_COL32(235, 240, 250, 255), label.text);
+            for (int i = vtx_begin; i < draw_list->VtxBuffer.Size; ++i) {
+                ImDrawVert& vertex = draw_list->VtxBuffer[i];
+                const float lx = (vertex.pos.x - gizmo_center.x) * text_scale;
+                const float ly = (gizmo_center.y - vertex.pos.y) * text_scale;
+                vertex.pos = project_cube_point(Add(face_center, Add(Mul(right, lx), Mul(up, ly))));
+            }
+        }
     }
 
     draw_list->PopClipRect();
