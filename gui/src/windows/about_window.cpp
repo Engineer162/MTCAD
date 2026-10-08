@@ -25,10 +25,10 @@ AboutWindow::AboutWindowResult AboutWindow::Render(SDL_Window* parent_window) {
     ImGui::Begin("About", &open_state, ImGuiWindowFlags_NoDocking);
 
     const mtcad_application_version applicationVer = mtcad_application_get_version();
-    const mtkernel_version ver = mtkernel_get_version();
+    const mtkernel_version KernelVer = mtkernel_get_version();
 
     ImGui::Text("Application %d.%d.%d", applicationVer.major, applicationVer.minor, applicationVer.patch);
-    ImGui::Text("Kernel %d.%d.%d", ver.major, ver.minor, ver.patch);
+    ImGui::Text("Kernel %d.%d.%d", KernelVer.major, KernelVer.minor, KernelVer.patch);
 
     ImGui::End();
     open_ = open_state;
